@@ -286,7 +286,7 @@ def normalize_bureau(value):
 
     # Normalize common Census naming differences.
     census_variants = {
-        "bureau of the census":
+        "census bureau":
             "united states census bureau",
 
         "u.s. census bureau":
@@ -448,7 +448,7 @@ BUREAUS = {
         "homepage": "https://www.bls.gov/"
     },
 
-    "Bureau of the Census": {
+    "Census Bureau": {
         "publisher": "United States Census Bureau",
         "identifier_code": "CEN",
         "bureauCode": ["006:07"],
