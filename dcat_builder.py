@@ -2,10 +2,6 @@ import datetime
 
 
 def clean(value):
-    """
-    Clean a value before adding it to the DCAT-US JSON.
-    Returns None for empty values.
-    """
     if value is None:
         return None
     if isinstance(value, str):
@@ -16,119 +12,43 @@ def clean(value):
 
 
 def add_if_value(dictionary, key, value):
-    """
-    Add a key/value pair only if the value is not empty.
-    """
     value = clean(value)
-
     if value is not None:
         dictionary[key] = value
 
 
 def normalize_single_value(value):
-    """
-    Streamlit widgets can sometimes return a list even when
-    DCAT-US expects a single string/object.
-
-    Convert:
-        ["value"] -> "value"
-
-    and:
-        ["value 1", "value 2"] -> "value 1, value 2"
-    """
-
     if isinstance(value, list):
-
-        if len(value) == 0:
+        if not value:
             return None
-
         if len(value) == 1:
             return value[0]
-
-        return ", ".join(
-            str(item)
-            for item in value
-            if item is not None
-        )
-
+        return ", ".join(str(item) for item in value if item is not None)
     return value
 
 
-# ============================================================
-# CONTACT
-# ============================================================
+def build_contact(name, email=None, phone=None, organization=None):
+    contact = {"@type": "vcard:Contact"}
 
-def build_contact(
-    name,
-    email=None,
-    phone=None,
-    organization=None
-):
-    """
-    Build a DCAT-US vCard Contact object.
-    """
-
-    contact = {
-        "@type": "vcard:Contact"
-    }
-
-    add_if_value(
-        contact,
-        "fn",
-        name
-    )
+    add_if_value(contact, "fn", name)
 
     if email:
-        email = email.strip()
-
-        if (
-            email
-            and not email.lower().startswith("mailto:")
-        ):
+        email = str(email).strip()
+        if email and not email.lower().startswith("mailto:"):
             email = f"mailto:{email}"
+        add_if_value(contact, "hasEmail", email)
 
-        add_if_value(
-            contact,
-            "hasEmail",
-            email
-        )
-
-    add_if_value(
-        contact,
-        "hasTelephone",
-        phone
-    )
-
-    add_if_value(
-        contact,
-        "organization-name",
-        organization
-    )
+    add_if_value(contact, "hasTelephone", phone)
+    add_if_value(contact, "organization-name", organization)
 
     return contact
 
 
-# ============================================================
-# PUBLISHER
-# ============================================================
-
-def build_publisher(
-    office,
-    bureau_info
-):
-    """
-    Build the Dataset publisher object.
-    """
-
+def build_publisher(office, bureau_info):
     publisher = {
-        "@type": "org:Organization"
+        "@type": "org:Organization",
+        "name": office,
     }
-
-    add_if_value(
-        publisher,
-        "name",
-        office
-    )
 
     if bureau_info.get("homepage"):
         publisher["url"] = bureau_info["homepage"]
@@ -136,334 +56,147 @@ def build_publisher(
     return publisher
 
 
-# ============================================================
-# ACCESS RESTRICTION
-# ============================================================
-
-def build_access_restriction(
-    access_restriction
-):
-    """
-    Build an AccessRestriction object.
-
-    DCAT-US expects Dataset.accessRestriction
-    to be an ARRAY of AccessRestriction objects.
-
-    The individual specificRestriction value must
-    be a string or object, NOT an array.
-    """
-
+def build_access_restriction(access_restriction):
     if not access_restriction:
         return None
 
-    restriction = {
-        "@type": "AccessRestriction"
-    }
+    restriction = {"@type": "AccessRestriction"}
 
     add_if_value(
         restriction,
         "restrictionStatus",
-        normalize_single_value(
-            access_restriction.get(
-                "restrictionStatus"
-            )
-        )
+        normalize_single_value(access_restriction.get("restrictionStatus")),
     )
-
     add_if_value(
         restriction,
         "specificRestriction",
-        normalize_single_value(
-            access_restriction.get(
-                "specificRestriction"
-            )
-        )
+        normalize_single_value(access_restriction.get("specificRestriction")),
     )
-
     add_if_value(
         restriction,
         "restrictionNote",
-        access_restriction.get(
-            "restrictionNote"
-        )
+        access_restriction.get("restrictionNote"),
     )
 
     return restriction
 
 
-# ============================================================
-# CUI RESTRICTION
-# ============================================================
-
-def build_cui_restriction(
-    cui_restriction
-):
-    """
-    Build a CUIRestriction object.
-
-    CUIRestriction remains an OBJECT.
-
-    Values coming from Streamlit selection widgets
-    are normalized in case they arrive as lists.
-    """
-
+def build_cui_restriction(cui_restriction):
     if not cui_restriction:
         return None
 
-    restriction = {
-        "@type": "CUIRestriction"
-    }
+    restriction = {"@type": "CUIRestriction"}
 
     add_if_value(
         restriction,
         "cuiBannerMarking",
-        normalize_single_value(
-            cui_restriction.get(
-                "cuiBannerMarking"
-            )
-        )
+        normalize_single_value(cui_restriction.get("cuiBannerMarking")),
     )
-
     add_if_value(
         restriction,
         "designationIndicator",
-        normalize_single_value(
-            cui_restriction.get(
-                "designationIndicator"
-            )
-        )
+        normalize_single_value(cui_restriction.get("designationIndicator")),
     )
 
     return restriction
 
 
-# ============================================================
-# USE RESTRICTION
-# ============================================================
-
-def build_use_restriction(
-    use_restriction
-):
-    """
-    Build a UseRestriction object.
-
-    DCAT-US expects Dataset.useRestriction
-    to be an ARRAY of UseRestriction objects.
-
-    The individual specificRestriction value must
-    be a string or object, NOT an array.
-    """
-
+def build_use_restriction(use_restriction):
     if not use_restriction:
         return None
 
-    restriction = {
-        "@type": "UseRestriction"
-    }
+    restriction = {"@type": "UseRestriction"}
 
     add_if_value(
         restriction,
         "restrictionStatus",
-        normalize_single_value(
-            use_restriction.get(
-                "restrictionStatus"
-            )
-        )
+        normalize_single_value(use_restriction.get("restrictionStatus")),
     )
-
     add_if_value(
         restriction,
         "specificRestriction",
-        normalize_single_value(
-            use_restriction.get(
-                "specificRestriction"
-            )
-        )
+        normalize_single_value(use_restriction.get("specificRestriction")),
     )
-
     add_if_value(
         restriction,
         "restrictionNote",
-        use_restriction.get(
-            "restrictionNote"
-        )
+        use_restriction.get("restrictionNote"),
     )
 
     return restriction
 
 
-# ============================================================
-# SPATIAL
-# ============================================================
-
-def build_spatial(
-    spatial
-):
-    """
-    Build a DCAT-US Location object.
-
-    A simple value such as:
-
-        Washington
-
-    becomes:
-
-        [
-            {
-                "@type": "dct:Location",
-                "name": "Washington"
-            }
-        ]
-    """
-
+def build_spatial(spatial, spatial_granularity=None):
     spatial = clean(spatial)
 
     if spatial is None:
         return None
 
-    # Multiple locations
-    if isinstance(spatial, list):
-
-        locations = []
-
-        for location in spatial:
-
-            location = clean(location)
-
-            if location:
-
-                locations.append(
-                    {
-                        "@type": "dct:Location",
-                        "name": location
-                    }
-                )
-
-        if locations:
-            return locations
-
-        return None
-
-    # Single location
-    return [
-        {
-            "@type": "dct:Location",
-            "name": spatial
+    def make_location(value):
+        location = {
+            "@type": "Location",
+            "prefLabel": str(value).strip(),
         }
-    ]
+        if spatial_granularity:
+            location["spatialGranularity"] = spatial_granularity
+        return location
+
+    if isinstance(spatial, list):
+        locations = [
+            make_location(value)
+            for value in spatial
+            if clean(value)
+        ]
+        return locations or None
+
+    return make_location(spatial)
 
 
-# ============================================================
-# TEMPORAL
-# ============================================================
+def build_temporal(temporal_start, temporal_end):
+    temporal_start = clean(temporal_start)
+    temporal_end = clean(temporal_end)
 
-def build_temporal(
-    temporal_start,
-    temporal_end
-):
-    """
-    Build a DCAT-US PeriodOfTime.
-
-    DCAT-US expects Dataset.temporal
-    to be an ARRAY.
-    """
-
-    temporal_start = clean(
-        temporal_start
-    )
-
-    temporal_end = clean(
-        temporal_end
-    )
-
-    if (
-        temporal_start is None
-        and temporal_end is None
-    ):
+    if temporal_start is None and temporal_end is None:
         return None
 
-    period = {
-        "@type": "dct:PeriodOfTime"
-    }
+    period = {"@type": "PeriodOfTime"}
 
     if temporal_start:
         period["startDate"] = temporal_start
-
     if temporal_end:
         period["endDate"] = temporal_end
 
-    return [
-        period
-    ]
+    return [period]
 
 
-# ============================================================
-# DOCUMENT
-# ============================================================
-
-def build_document(
-    url,
-    title=None
-):
-    """
-    Build a DCAT-US Document object.
-
-    Used for:
-        - homepage
-        - landingPage
-        - describedBy
-    """
-
+def build_document(url, title=None):
     url = clean(url)
-
     if url is None:
         return None
 
     document = {
-        "@type": "dcat:Resource"
+        "@type": "Document",
+        "accessURL": url,
     }
 
-    if title:
-        document["title"] = title
-
-    document["accessURL"] = url
+    add_if_value(document, "title", title)
 
     return document
 
 
-# ============================================================
-# DATA DICTIONARY
-# ============================================================
-
-def build_data_dictionary(
-    data_dictionary
-):
-    """
-    Build the describedBy value.
-
-    Supports either:
-        - an existing dictionary/object
-        - a URL string
-    """
-
+def build_data_dictionary(data_dictionary):
     if not data_dictionary:
         return None
 
-    if isinstance(
-        data_dictionary,
-        dict
-    ):
+    if isinstance(data_dictionary, dict):
         return data_dictionary
 
-    return build_document(
-        data_dictionary,
-        "Data Dictionary"
-    )
+    return {
+        "@type": "Distribution",
+        "title": "Data Dictionary",
+        "accessURL": data_dictionary,
+    }
 
-
-# ============================================================
-# DATASET
-# ============================================================
 
 def build_dataset(
     bureau_info,
@@ -488,313 +221,121 @@ def build_dataset(
     spatial,
     modified,
     data_dictionary,
-    landing_page
+    landing_page,
+    spatial_granularity=None,
+    contract_number=None,
+    additional_properties=None,
 ):
-    """
-    Build a complete DCAT-US 3.0 Dataset.
-
-    Identifier examples:
-
-        BEA-000001
-        BEA-000002
-        ITA-000001
-        CEN-000001
-    """
-
-    # --------------------------------------------------------
-    # IDENTIFIER
-    # --------------------------------------------------------
-
     identifier = (
         f"{bureau_info['identifier_code']}-"
         f"{dataset_number:06d}"
     )
 
-    # --------------------------------------------------------
-    # BASE DATASET
-    # --------------------------------------------------------
-
     dataset = {
-        "@type": "dcat:Dataset",
-        "identifier": identifier
+        "@type": "Dataset",
+        "identifier": identifier,
     }
 
-    # --------------------------------------------------------
-    # TITLE
-    # --------------------------------------------------------
-
-    add_if_value(
-        dataset,
-        "title",
-        title
-    )
-
-    # --------------------------------------------------------
-    # DESCRIPTION
-    # --------------------------------------------------------
-
-    add_if_value(
-        dataset,
-        "description",
-        description
-    )
-
-    # --------------------------------------------------------
-    # PUBLISHER
-    # --------------------------------------------------------
+    add_if_value(dataset, "title", title)
+    add_if_value(dataset, "description", description)
 
     if office:
-
-        dataset["publisher"] = build_publisher(
-            office,
-            bureau_info
-        )
-
-    # --------------------------------------------------------
-    # CONTACT POINT
-    # --------------------------------------------------------
+        dataset["publisher"] = build_publisher(office, bureau_info)
 
     if contact_name:
-
-        contact = build_contact(
-            name=contact_name,
-            email=contact_email,
-            phone=contact_phone,
-            organization=contact_organization
-        )
-
-        # DCAT-US expects an ARRAY.
         dataset["contactPoint"] = [
-            contact
+            build_contact(
+                name=contact_name,
+                email=contact_email,
+                phone=contact_phone,
+                organization=contact_organization,
+            )
         ]
-
-    # --------------------------------------------------------
-    # KEYWORDS
-    # --------------------------------------------------------
 
     if keywords:
-
         cleaned_keywords = []
-
         for keyword in keywords:
-
-            keyword = str(
-                keyword
-            ).strip().lower()
-
-            if (
-                keyword
-                and keyword not in cleaned_keywords
-            ):
-                cleaned_keywords.append(
-                    keyword
-                )
-
+            keyword = str(keyword).strip().lower()
+            if keyword and keyword not in cleaned_keywords:
+                cleaned_keywords.append(keyword)
         if cleaned_keywords:
-
-            dataset["keyword"] = (
-                cleaned_keywords
-            )
-
-    # --------------------------------------------------------
-    # THEMES
-    # --------------------------------------------------------
+            dataset["keyword"] = cleaned_keywords
 
     if themes:
-
         cleaned_themes = []
-
         for theme in themes:
-
-            theme = str(
-                theme
-            ).strip().lower()
-
-            if (
-                theme
-                and theme not in cleaned_themes
-            ):
-                cleaned_themes.append(
-                    theme
-                )
+            theme = str(theme).strip().lower()
+            if theme and theme not in cleaned_themes:
+                cleaned_themes.append(theme)
 
         if cleaned_themes:
+            dataset["theme"] = [
+                {
+                    "@type": "Concept",
+                    "prefLabel": theme,
+                }
+                for theme in cleaned_themes
+            ]
 
-            dataset["theme"] = (
-                cleaned_themes
-            )
+    add_if_value(dataset, "accessRights", access_rights)
 
-    # --------------------------------------------------------
-    # ACCESS RIGHTS
-    # --------------------------------------------------------
+    access = build_access_restriction(access_restriction)
+    if access:
+        dataset["accessRestriction"] = [access]
 
-    add_if_value(
-        dataset,
-        "accessRights",
-        access_rights
-    )
-
-    # --------------------------------------------------------
-    # ACCESS RESTRICTION
-    # --------------------------------------------------------
-
-    restriction = (
-        build_access_restriction(
-            access_restriction
-        )
-    )
-
-    if restriction:
-
-        # IMPORTANT:
-        # accessRestriction is an ARRAY.
-        dataset["accessRestriction"] = [
-            restriction
-        ]
-
-    # --------------------------------------------------------
-    # CUI RESTRICTION
-    # --------------------------------------------------------
-
-    cui = build_cui_restriction(
-        cui_restriction
-    )
-
+    cui = build_cui_restriction(cui_restriction)
     if cui:
+        dataset["cuiRestriction"] = cui
 
-        # CUIRestriction is currently an OBJECT.
-        dataset["CUIRestriction"] = cui
-
-    # --------------------------------------------------------
-    # USE RESTRICTION
-    # --------------------------------------------------------
-
-    use = build_use_restriction(
-        use_restriction
-    )
-
+    use = build_use_restriction(use_restriction)
     if use:
+        dataset["useRestriction"] = [use]
 
-        # IMPORTANT:
-        # useRestriction is an ARRAY.
-        dataset["useRestriction"] = [
-            use
-        ]
+    add_if_value(dataset, "license", license)
 
-    # --------------------------------------------------------
-    # LICENSE
-    # --------------------------------------------------------
+    rights_value = normalize_single_value(rights)
+    if clean(rights_value) is not None:
+        dataset["rights"] = [rights_value]
 
-    add_if_value(
-        dataset,
-        "license",
-        license
-    )
-    # --------------------------------------------------------
-    # --------------------------------------------------------
-    # RIGHTS
-    # --------------------------------------------------------
-
-    rights_value = normalize_single_value(
-        rights
-    )
-
-    rights_value = clean(
-        rights_value
-    )
-
-    if rights_value is not None:
-
-        dataset["rights"] = [
-            rights_value
-        ]
-
-    # --------------------------------------------------------
-    # TEMPORAL
-    # --------------------------------------------------------
-
-    temporal = build_temporal(
-        temporal_start,
-        temporal_end
-    )
-
+    temporal = build_temporal(temporal_start, temporal_end)
     if temporal:
-
-        # IMPORTANT:
-        # temporal is an ARRAY.
         dataset["temporal"] = temporal
 
-    # --------------------------------------------------------
-    # SPATIAL
-    # --------------------------------------------------------
-
     spatial_object = build_spatial(
-        spatial
+        spatial,
+        spatial_granularity=spatial_granularity,
     )
-
     if spatial_object:
+        dataset["spatial"] = spatial_object
 
-        dataset["spatial"] = (
-            spatial_object
-        )
+    add_if_value(dataset, "modified", modified)
 
-    # --------------------------------------------------------
-    # MODIFIED
-    # --------------------------------------------------------
-
-    add_if_value(
-        dataset,
-        "modified",
-        modified
-    )
-
-    # --------------------------------------------------------
-    # DATA DICTIONARY
-    # --------------------------------------------------------
-
-    described_by = build_data_dictionary(
-        data_dictionary
-    )
-
+    described_by = build_data_dictionary(data_dictionary)
     if described_by:
-
-        dataset["describedBy"] = (
-            described_by
-        )
-
-    # --------------------------------------------------------
-    # LANDING PAGE
-    # --------------------------------------------------------
+        dataset["describedBy"] = described_by
 
     if landing_page:
-
-        landing_page_object = (
-            build_document(
-                landing_page,
-                "Dataset Landing Page"
-            )
+        landing_page_object = build_document(
+            landing_page,
+            "Dataset Landing Page",
         )
-
         if landing_page_object:
+            dataset["landingPage"] = landing_page_object
 
-            dataset["landingPage"] = (
-                landing_page_object
-            )
+    if contract_number:
+        dataset["contractNumber"] = str(contract_number).strip()[:40]
 
-    # --------------------------------------------------------
-    # INVENTORIED
-    # --------------------------------------------------------
+    if additional_properties:
+        for property_name, property_value in additional_properties.items():
+            if property_name and clean(property_value) is not None:
+                # Deliberately do not transform this value. The user is
+                # responsible for supplying the correct DCAT-US structure.
+                dataset[property_name] = property_value
 
-    dataset["inventoried"] = (
-        datetime.date.today().isoformat()
-    )
+    dataset["inventoried"] = datetime.date.today().isoformat()
 
     return dataset
 
-
-# ============================================================
-# CATALOG
-# ============================================================
 
 def build_catalog(
     bureau_info,
@@ -802,116 +343,47 @@ def build_catalog(
     catalog_contact_email,
     catalog_contact_phone,
     catalog_contact_organization,
-    datasets
+    datasets,
 ):
-    """
-    Build the complete DCAT-US Catalog.
-
-    MVP currently includes:
-        - Catalog
-        - Dataset
-
-    Dataservice and Dataseries are excluded.
-    """
-
-    # --------------------------------------------------------
-    # BASE CATALOG
-    # --------------------------------------------------------
-
     catalog = {
-
         "@context": (
             "https://resources.data.gov/"
             "schemas/dcat-us/v3.0/context.jsonld"
         ),
-
-        "@type": "dcat:Catalog"
+        "@type": "Catalog",
+        "title": f"{bureau_info['publisher']} Data Catalog",
+        "description": (
+            f"These data are cataloged by "
+            f"{bureau_info['publisher']}."
+        ),
     }
-
-    # --------------------------------------------------------
-    # TITLE
-    # --------------------------------------------------------
-
-    catalog["title"] = (
-        f"{bureau_info['publisher']} Data Catalog"
-    )
-
-    # --------------------------------------------------------
-    # DESCRIPTION
-    # --------------------------------------------------------
-
-    catalog["description"] = (
-        f"This is a catalog of "
-        f"{bureau_info['publisher']} data."
-    )
-
-    # --------------------------------------------------------
-    # HOMEPAGE
-    # --------------------------------------------------------
 
     if bureau_info.get("homepage"):
-
-        homepage = build_document(
+        catalog["homepage"] = build_document(
             bureau_info["homepage"],
-            f"{bureau_info['publisher']} Data Catalog Homepage"
+            f"{bureau_info['publisher']} Data Catalog Homepage",
         )
-
-        if homepage:
-
-            catalog["homepage"] = homepage
-
-    # --------------------------------------------------------
-    # PUBLISHER
-    # --------------------------------------------------------
 
     catalog["publisher"] = {
-
-        "@type": "org:Organization",
-
-        "name": bureau_info["publisher"]
+        "@type": "Organization",
+        "name": bureau_info["publisher"],
     }
 
-    # --------------------------------------------------------
-    # BUREAU CODE
-    # --------------------------------------------------------
-
     if bureau_info.get("bureauCode"):
-
-        catalog["bureauCode"] = (
-            bureau_info["bureauCode"]
-        )
-
-    # --------------------------------------------------------
-    # PROGRAM CODE
-    # --------------------------------------------------------
+        catalog["bureauCode"] = bureau_info["bureauCode"]
 
     if bureau_info.get("programCode"):
-
-        catalog["programCode"] = (
-            bureau_info["programCode"]
-        )
-
-    # --------------------------------------------------------
-    # CATALOG CONTACT
-    # --------------------------------------------------------
+        catalog["programCode"] = bureau_info["programCode"]
 
     if catalog_contact_name:
-
-        contact = build_contact(
-            name=catalog_contact_name,
-            email=catalog_contact_email,
-            phone=catalog_contact_phone,
-            organization=catalog_contact_organization
-        )
-
-        # DCAT-US expects an ARRAY.
         catalog["contactPoint"] = [
-            contact
+            build_contact(
+                name=catalog_contact_name,
+                email=catalog_contact_email,
+                phone=catalog_contact_phone,
+                organization=catalog_contact_organization,
+            )
         ]
-
-    # --------------------------------------------------------
-    # DATASETS
-    # --------------------------------------------------------
 
     catalog["dataset"] = datasets
 
