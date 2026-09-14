@@ -519,8 +519,6 @@ def default_contact_index(options):
     """
     preferred_terms = (
         "call center",
-        "webmaster", 
-        "general outreach",
         "contact center",
         "customer service",
         "customer contact",
