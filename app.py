@@ -34,103 +34,125 @@ THEMES_FILE = "themes.json"
 st.markdown(
     """
     <style>
+    /* Force the entire app into a light visual treatment. */
+    :root {
+        color-scheme: light !important;
+    }
 
     html,
     body,
+    [data-testid="stApp"],
     [data-testid="stAppViewContainer"],
-    [data-testid="stApp"] {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-    }
-
-    [data-testid="stHeader"] {
-        background-color: #ffffff !important;
-    }
-
-    [data-testid="stToolbar"] {
-        background-color: #ffffff !important;
-    }
-
-    [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-    }
-
+    [data-testid="stAppViewContainer"] > .main,
+    [data-testid="stMain"],
     .main,
     .block-container {
+        background: #ffffff !important;
         background-color: #ffffff !important;
         color: #1f2937 !important;
     }
 
-    h1,
-    h2,
-    h3 {
+    [data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarContent"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+    }
+
+    /* All normal text. */
+    h1, h2, h3 {
         color: #005ea8 !important;
     }
 
-    h4,
-    h5,
-    h6,
-    p,
-    label {
-        color: #1f2937 !important;
+    h4, h5, h6,
+    p, label, li, span, div {
+        color: #1f2937;
     }
 
+    /* Streamlit/BaseWeb inputs. */
     input,
-    textarea {
+    textarea,
+    [data-baseweb="input"],
+    [data-baseweb="textarea"],
+    [data-baseweb="input"] > div,
+    [data-baseweb="textarea"] > div {
+        background: #ffffff !important;
         background-color: #ffffff !important;
         color: #1f2937 !important;
-        border: 1px solid #9ca3af !important;
+        border-color: #9ca3af !important;
+        -webkit-text-fill-color: #1f2937 !important;
     }
 
     input::placeholder,
     textarea::placeholder {
         color: #6b7280 !important;
         opacity: 1 !important;
+        -webkit-text-fill-color: #6b7280 !important;
     }
 
+    /* Select boxes and multiselects. */
+    div[data-baseweb="select"],
     div[data-baseweb="select"] > div {
+        background: #ffffff !important;
         background-color: #ffffff !important;
         color: #1f2937 !important;
-        border: 1px solid #9ca3af !important;
+        border-color: #9ca3af !important;
     }
 
+    div[data-baseweb="select"] *,
     div[data-baseweb="select"] span {
         color: #1f2937 !important;
+        -webkit-text-fill-color: #1f2937 !important;
     }
 
-    div[data-baseweb="popover"],
-    div[data-baseweb="menu"],
-    div[role="listbox"] {
-        background-color: #ffffff !important;
-    }
-
-    div[role="option"] {
+    /* Dropdown menus/popovers. */
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] > div,
+    [data-baseweb="menu"],
+    [role="listbox"] {
+        background: #ffffff !important;
         background-color: #ffffff !important;
         color: #1f2937 !important;
     }
 
-    div[role="option"]:hover {
-        background-color: #eff6ff !important;
+    [role="option"] {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+    }
+
+    [role="option"]:hover,
+    [role="option"][aria-selected="true"] {
+        background: #eff6ff !important;
         color: #005ea8 !important;
     }
 
+    /* Multiselect tags. */
     span[data-baseweb="tag"] {
-        background-color: #e6f2ff !important;
+        background: #e6f2ff !important;
         color: #005ea8 !important;
     }
 
+    span[data-baseweb="tag"] *,
     span[data-baseweb="tag"] span {
         color: #005ea8 !important;
+        -webkit-text-fill-color: #005ea8 !important;
     }
 
-    .stButton > button {
+    /* Buttons. */
+    .stButton > button,
+    .stDownloadButton > button {
+        background: #005ea8 !important;
         background-color: #005ea8 !important;
         color: #ffffff !important;
         border: 1px solid #005ea8 !important;
         font-weight: 600 !important;
     }
 
-    .stButton > button:hover {
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        background: #004b87 !important;
         background-color: #004b87 !important;
         color: #ffffff !important;
     }
@@ -138,36 +160,67 @@ st.markdown(
     .stButton > button *,
     .stButton > button p,
     .stButton > button span,
-    .stButton > button div {
-        color: #ffffff !important;
-    }
-
-    .stDownloadButton > button {
-        background-color: #005ea8 !important;
-        color: #ffffff !important;
-        border: 1px solid #005ea8 !important;
-        font-weight: 600 !important;
-    }
-
-    .stDownloadButton > button:hover {
-        background-color: #004b87 !important;
-        color: #ffffff !important;
-    }
-
+    .stButton > button div,
     .stDownloadButton > button *,
     .stDownloadButton > button p,
     .stDownloadButton > button span,
     .stDownloadButton > button div {
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
 
-    [data-testid="stExpander"] {
+    /* Expanders/cards. */
+    [data-testid="stExpander"],
+    [data-testid="stExpander"] > details,
+    [data-testid="stExpander"] summary {
+        background: #ffffff !important;
         background-color: #ffffff !important;
-        border: 1px solid #d1d5db !important;
+        color: #1f2937 !important;
+        border-color: #d1d5db !important;
+    }
+
+    /* Checkboxes, radio buttons, and other form controls. */
+    [data-testid="stCheckbox"],
+    [data-testid="stRadio"],
+    [data-testid="stSelectbox"],
+    [data-testid="stMultiSelect"],
+    [data-testid="stTextInput"],
+    [data-testid="stTextArea"],
+    [data-testid="stNumberInput"],
+    [data-testid="stDateInput"] {
+        color: #1f2937 !important;
+    }
+
+    /* Number/date input containers. */
+    [data-testid="stNumberInput"] [data-baseweb="input"],
+    [data-testid="stDateInput"] [data-baseweb="input"] {
+        background: #ffffff !important;
+        color: #1f2937 !important;
+    }
+
+    /* Code / JSON preview should remain readable on white. */
+    pre,
+    code,
+    [data-testid="stCode"],
+    [data-testid="stJson"] {
+        background: #f8fafc !important;
+        background-color: #f8fafc !important;
+        color: #1f2937 !important;
+        border-color: #d1d5db !important;
+    }
+
+    /* Links. */
+    a {
+        color: #005ea8 !important;
+    }
+
+    /* Remove dark-looking horizontal rules. */
+    hr {
+        border-color: #d1d5db !important;
     }
 
     .section-header {
-        color: #005ea8;
+        color: #005ea8 !important;
         border-bottom: 2px solid #dbeafe;
         padding-bottom: 8px;
         margin-top: 30px;
@@ -175,21 +228,24 @@ st.markdown(
     }
 
     .question-help {
-        background-color: #f8fbff;
+        background: #f8fbff !important;
+        background-color: #f8fbff !important;
+        color: #1f2937 !important;
         border-left: 4px solid #005ea8;
         padding: 10px 14px;
         margin: 8px 0 16px 0;
     }
 
     .saved-indicator {
-        background-color: #eff6ff;
+        background: #eff6ff !important;
+        background-color: #eff6ff !important;
+        color: #1f2937 !important;
         border: 1px solid #bfdbfe;
         padding: 10px 14px;
         margin-top: 8px;
         margin-bottom: 8px;
         border-radius: 4px;
     }
-
     </style>
     """,
     unsafe_allow_html=True
