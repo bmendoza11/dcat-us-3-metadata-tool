@@ -155,9 +155,51 @@
   },
   {
     "bureau": "United States Census Bureau",
-    "name": "census bureau call center",
+    "name": "Census Bureau Call Center",
     "email": "",
-    "phone": "1-800-923-8282",
+    "phone": "301-763-4636 / 800-923-8282",
     "organization": "United States Census Bureau"
+  },
+  {
+    "bureau": "Bureau of Industry and Security",
+    "name": "Office of Exporter Services",
+    "email": "",
+    "phone": "202-482-4811",
+    "organization": "Bureau of Industry and Security"
+  },
+  {
+    "bureau": "Bureau of Labor Statistics",
+    "name": "BLS Information Services",
+    "email": "",
+    "phone": "202-691-5200",
+    "organization": "Bureau of Labor Statistics"
+  },
+  {
+    "bureau": "International Trade Administration",
+    "name": "Trade Information Center",
+    "email": "",
+    "phone": "1-800-872-8723",
+    "organization": "International Trade Administration"
+  },
+  {
+    "bureau": "National Institute of Standards and Technology",
+    "name": "NIST Public Inquiries",
+    "email": "inquiries@nist.gov",
+    "phone": "301-975-6478",
+    "organization": "National Institute of Standards and Technology"
+  },
+  {
+    "bureau": "National Oceanic and Atmospheric Administration",
+    "name": "NOAA General Outreach",
+    "email": "outreach@noaa.gov",
+    "phone": "301-713-1208",
+    "organization": "National Oceanic and Atmospheric Administration"
+  },
+  {
+    "bureau": "Patent and Trademark Office",
+    "name": "USPTO Contact Center",
+    "email": "usptoinfo@uspto.gov",
+    "phone": "800-786-9199 / 571-272-1000",
+    "organization": "United States Patent and Trademark Office"
   }
 ]
