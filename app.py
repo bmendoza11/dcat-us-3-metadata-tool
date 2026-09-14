@@ -259,6 +259,78 @@ def normalize_theme_name(value):
     return normalize_text(value)
 
 
+# ============================================================
+# DATE VALIDATION
+# ============================================================
+
+def is_valid_dcat_date(value):
+    """Allow YYYY, YYYY-MM, or YYYY-MM-DD and validate real dates."""
+    value = normalize_text(value)
+    if not value:
+        return True
+
+    if re.fullmatch(r"\\d{4}", value):
+        return True
+
+    if re.fullmatch(r"\\d{4}-\\d{2}", value):
+        year, month = map(int, value.split("-"))
+        return 1 <= month <= 12
+
+    if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", value):
+        try:
+            datetime.date.fromisoformat(value)
+            return True
+        except ValueError:
+            return False
+
+    return False
+
+
+def validate_date_field(label, value):
+    if value and not is_valid_dcat_date(value):
+        st.warning(
+            f"{label} must use YYYY, YYYY-MM, or YYYY-MM-DD. "
+            "Please correct the format before saving."
+        )
+
+
+# ============================================================
+# DCAT-US DATASET PROPERTIES
+# ============================================================
+
+DCAT_DATASET_PROPERTIES = [
+    "accessRights", "accessRestriction", "accrualPeriodicity",
+    "category", "conformsTo", "contributor", "created", "creator",
+    "description", "distribution", "first", "hasCurrentVersion",
+    "hasPart", "hasQualityMeasurement", "hasVersion", "image",
+    "inventoried", "isReferencedBy", "issued", "keyword", "language",
+    "landingPage", "liabilityStatement", "metadataDistribution",
+    "modified", "otherIdentifier", "page", "previousVersion",
+    "provenance", "purpose", "qualifiedAttribution", "qualifiedRelation",
+    "relation", "replaces", "rights", "rightsHolder", "sample",
+    "scopeNote", "source", "spatial", "spatialResolutionInMeters",
+    "status", "subject", "supportedSchema", "temporal",
+    "temporalResolution", "theme", "title", "useRestriction",
+    "version", "versionNotes", "wasAttributedTo", "wasGeneratedBy",
+    "wasUsedBy", "cuiRestriction", "describedBy", "identifier",
+    "license", "publisher", "contactPoint",
+]
+
+ADDITIONAL_PROPERTY_OPTIONS = [
+    p for p in DCAT_DATASET_PROPERTIES
+    if p not in {
+        "title", "description", "identifier", "publisher", "contactPoint",
+        "keyword", "theme", "accessRights", "accessRestriction",
+        "cuiRestriction", "useRestriction", "license", "rights",
+        "temporal", "spatial", "modified", "describedBy", "landingPage",
+    }
+]
+
+
+# ============================================================
+# CONTACT HELPERS
+# ============================================================
+
 def normalize_bureau(value):
 
     """
@@ -381,6 +453,30 @@ def contact_display(contact):
         )
 
     return name
+
+
+def default_contact_index(options):
+    """
+    Prefer a bureau's general call/customer/information center
+    when one is available. The first option remains the manual
+    "Select" option when no general contact is present.
+    """
+    preferred_terms = (
+        "call center",
+        "contact center",
+        "customer service",
+        "customer contact",
+        "information center",
+        "general information",
+        "information services",
+    )
+
+    for index, option in enumerate(options):
+        normalized = normalize_text(option)
+        if any(term in normalized for term in preferred_terms):
+            return index
+
+    return 0
 
 
 # ============================================================
@@ -654,7 +750,7 @@ st.markdown(
     {bureau_info['publisher']} Data Catalog
     <br><br>
     <strong>Description:</strong>
-    This is a catalog of {bureau_info['publisher']} data.
+    These data are cataloged by {bureau_info['publisher']}.
     </div>
     """,
     unsafe_allow_html=True
@@ -691,7 +787,8 @@ catalog_contact_choice = st.selectbox(
     "Who should be contacted with questions "
     "about this catalog? **(Required)**",
     catalog_contact_options,
-    key="catalog_contact"
+    index=default_contact_index(catalog_contact_options),
+    key=f"catalog_contact_{normalize_text(selected_bureau)}"
 )
 
 
@@ -831,9 +928,24 @@ title = st.text_input(
 # Q4 DESCRIPTION
 # ============================================================
 
+st.markdown(
+    """
+    <div class="question-help">
+    <strong>Describe what these data contain in plain language.</strong><br><br>
+    Example:<br>
+    “The Current Population Survey (CPS) is a monthly survey of households conducted
+    by the Census Bureau for the Bureau of Labor Statistics. In addition to the
+    national unemployment rate, it provides data on employment, the unemployment
+    rate, persons not in the labor force, hours of work, earnings, and other
+    demographic and labor force characteristics.”
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 description = st.text_area(
-    "Describe what this dataset contains. **(Required)**",
-    height=120,
+    "Dataset description in plain language. **(Required)**",
+    height=160,
     key=f"description_{dataset_number}"
 )
 
@@ -882,7 +994,7 @@ office_options.extend(
 )
 
 selected_office = st.selectbox(
-    "Which office publishes this data? **(Required)**",
+    "Which office publishes these data? **(Required)**",
     office_options,
     key=f"office_{dataset_number}"
 )
@@ -923,7 +1035,8 @@ dataset_contact_choice = st.selectbox(
     "What is the best contact for questions "
     "about this dataset? **(Required)**",
     dataset_contact_options,
-    key=f"dataset_contact_{dataset_number}"
+    index=default_contact_index(dataset_contact_options),
+    key=f"dataset_contact_{dataset_number}_{normalize_text(selected_bureau)}"
 )
 
 
@@ -1041,7 +1154,7 @@ elif (
 
 st.markdown(
     "### What words would someone use to search "
-    "for this data? **(Required)**"
+    "for these data? **(Required)**"
 )
 
 tags = load_json_file(
@@ -1484,12 +1597,12 @@ st.markdown(
 )
 
 access_rights = st.selectbox(
-    "Who is allowed to access this data? "
+    "Who is allowed to access these data? "
     "**(Required)**",
     [
-        "This data is public",
-        "This data is restricted",
-        "This data is not public"
+        "These data are public",
+        "These data are restricted",
+        "These data are not public"
     ],
     key=f"access_rights_{dataset_number}"
 )
@@ -1500,7 +1613,7 @@ access_rights = st.selectbox(
 # ============================================================
 
 has_access_restriction = st.radio(
-    "Are there any restrictions on getting the data? "
+    "Are there any restrictions on getting these data? "
     "**(Required)**",
     [
         "No",
@@ -1516,7 +1629,7 @@ access_restriction = None
 if has_access_restriction == "Yes":
 
     access_status = st.selectbox(
-        "What is the data's restriction status? "
+        "What is these data' restriction status? "
         "**(Required)**",
         [
             "Restricted - Fully",
@@ -1597,7 +1710,7 @@ cui_restriction = None
 if has_cui == "Yes":
 
     cui_banner = st.selectbox(
-        "Which CUI Banner Marking is the data "
+        "Which CUI Banner Marking are these data "
         "associated with? **(Required)**",
         [
             "CONTROLLED",
@@ -1646,7 +1759,7 @@ st.markdown(
 )
 
 has_use_restriction = st.radio(
-    "Are there any other rules about how the data "
+    "Are there any other rules about how these data "
     "may be used, such as use restriction, license, "
     "or rights? **(Required)**",
     [
@@ -1713,7 +1826,7 @@ if has_use_restriction == "Yes":
     if "License" in restriction_types:
 
         license = st.text_input(
-            "What license does the data have? "
+            "What license applies to these data? "
             "**(Required)**",
             key=f"license_{dataset_number}"
         )
@@ -1739,7 +1852,7 @@ st.markdown(
 )
 
 st.markdown(
-    "### What time period does the data cover?"
+    "### What time period do these data cover?"
 )
 
 st.caption(
@@ -1764,7 +1877,7 @@ temporal_end = st.text_input(
 # ============================================================
 
 st.markdown(
-    "### Where does the data cover?"
+    "### Where do these data cover?"
 )
 
 spatial = st.text_input(
@@ -1782,10 +1895,12 @@ spatial = st.text_input(
 # ============================================================
 
 modified = st.text_input(
-    "When was this data last changed? **(Required)**",
+    "When were these data last changed? **(Required)**",
     placeholder="YYYY, YYYY-MM, or YYYY-MM-DD",
     key=f"modified_{dataset_number}"
 )
+
+validate_date_field("Modified date", modified)
 
 
 # ============================================================
@@ -1854,6 +1969,100 @@ if has_landing_page == "Yes":
 
 
 # ============================================================
+# Q19 CONTRACT NUMBER
+# ============================================================
+
+contract_number = st.text_input(
+    "Contract number by which these data were acquired (Optional)",
+    max_chars=40,
+    placeholder="Up to 40 characters",
+    key=f"contract_number_{dataset_number}"
+)
+
+# ============================================================
+# Q20 ADDITIONAL DCAT-US PROPERTY
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Additional DCAT-US Properties</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.caption(
+    "If you need to add another DCAT-US property, select it below "
+    "and enter its value. The tool does not transform or validate "
+    "the value you enter. You are responsible for ensuring the "
+    "value has the correct DCAT-US structure and format."
+)
+
+additional_key = f"additional_properties_{dataset_number}"
+if additional_key not in st.session_state:
+    st.session_state[additional_key] = {}
+
+saved_additional = st.session_state[additional_key]
+
+if saved_additional:
+    for property_name, property_value in saved_additional.items():
+        st.markdown(
+            f'<div class="saved-indicator">'
+            f'<strong>{property_name}</strong>: {property_value}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+additional_done_key = f"additional_done_{dataset_number}"
+if additional_done_key not in st.session_state:
+    st.session_state[additional_done_key] = False
+
+if not st.session_state[additional_done_key]:
+    additional_property = st.selectbox(
+        "Is there another property you would like to add?",
+        ["No"] + sorted(ADDITIONAL_PROPERTY_OPTIONS),
+        key=f"additional_property_{dataset_number}"
+    )
+
+    if additional_property != "No":
+        additional_value = st.text_area(
+            f"Value for {additional_property}",
+            help=(
+                "The tool will place this value into the JSON as entered. "
+                "It will not transform the value into a DCAT-US object, "
+                "array, date, URI, or other structure."
+            ),
+            key=f"additional_value_{dataset_number}"
+        )
+
+        if st.button(
+            "Add Property",
+            key=f"add_property_{dataset_number}"
+        ):
+            if not additional_value.strip():
+                st.warning("Enter a value before adding this property.")
+            elif additional_property in saved_additional:
+                st.warning(
+                    "That property has already been added. "
+                    "Choose another property."
+                )
+            else:
+                saved_additional[additional_property] = (
+                    additional_value.strip()
+                )
+                st.session_state[additional_key] = saved_additional
+                st.rerun()
+    else:
+        st.session_state[additional_done_key] = True
+        st.rerun()
+
+st.warning(
+    "Important: this tool does not transform or validate values entered "
+    "under Additional DCAT-US Properties. Make sure each value follows "
+    "the DCAT-US 3.0 schema. After generating your JSON, validate it at "
+    "https://harvest.data.gov/validate/."
+)
+
+# ============================================================
 # SAVE DATASET
 # ============================================================
 
@@ -1887,6 +2096,14 @@ if st.button(
         "Modified date": modified
     }
 
+    invalid_dates = []
+    if temporal_start and not is_valid_dcat_date(temporal_start):
+        invalid_dates.append("Temporal start")
+    if temporal_end and not is_valid_dcat_date(temporal_end):
+        invalid_dates.append("Temporal end")
+    if modified and not is_valid_dcat_date(modified):
+        invalid_dates.append("Modified date")
+
     missing = [
         name
         for name, value
@@ -1901,6 +2118,15 @@ if st.button(
         )
 
         for field in missing:
+            st.write(f"• {field}")
+
+    elif invalid_dates:
+
+        st.error(
+            "Please correct the following date fields before saving:"
+        )
+
+        for field in invalid_dates:
             st.write(f"• {field}")
 
     else:
@@ -1928,7 +2154,14 @@ if st.button(
             spatial=spatial,
             modified=modified,
             data_dictionary=data_dictionary,
-            landing_page=landing_page
+            landing_page=landing_page,
+            spatial_granularity=(
+                spatial_other
+                if spatial_granularity == "Other"
+                else spatial_granularity
+            ),
+            contract_number=contract_number,
+            additional_properties=saved_additional
         )
 
         dataset_index = (
@@ -1999,6 +2232,12 @@ if (
             )
         )
 
+        st.warning(
+            "Before using or publishing this JSON, validate it with the "
+            "Data.gov DCAT-US 3.0 validator: "
+            "https://harvest.data.gov/validate/"
+        )
+
         st.download_button(
             "Download Catalog JSON",
             data=json.dumps(
@@ -2016,6 +2255,12 @@ if (
 # ============================================================
 
 if st.session_state.datasets:
+
+    st.warning(
+        "Before using or publishing this JSON, validate it with the "
+        "Data.gov DCAT-US 3.0 validator: "
+        "https://harvest.data.gov/validate/"
+    )
 
     st.markdown("---")
 
