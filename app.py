@@ -30,221 +30,164 @@ THEMES_FILE = "themes.json"
 # ============================================================
 # LIGHT BLUE / WHITE STYLING
 # ============================================================
-
+# Keep Streamlit/BaseWeb components light even when the user's
+# system/browser preference is dark mode.
 st.markdown(
     """
     <style>
-    /* Force the entire app into a light visual treatment. */
-    :root {
-        color-scheme: light !important;
-    }
-
-    html,
-    body,
-    [data-testid="stApp"],
-    [data-testid="stAppViewContainer"],
-    [data-testid="stAppViewContainer"] > .main,
-    [data-testid="stMain"],
-    .main,
-    .block-container {
+    html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"],
+    [data-testid="stMain"], section.main, .main, .block-container {
         background: #ffffff !important;
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
+        color: #222222 !important;
     }
 
+    /* Top-level Streamlit chrome */
     [data-testid="stHeader"],
     [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    [data-testid="stSidebar"],
-    [data-testid="stSidebarContent"] {
+    [data-testid="stDecoration"] {
         background: #ffffff !important;
-        background-color: #ffffff !important;
     }
 
-    /* All normal text. */
+    /* Text */
+    h1, h2, h3, h4, h5, h6, p, label,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stCaptionContainer"] {
+        color: #222222 !important;
+    }
+
     h1, h2, h3 {
         color: #005ea8 !important;
     }
 
-    h4, h5, h6,
-    p, label, li, span, div {
-        color: #1f2937;
+    /* Inputs: force every nested BaseWeb layer to white */
+    [data-testid="stTextInput"] *,
+    [data-testid="stTextArea"] *,
+    [data-testid="stNumberInput"] *,
+    [data-testid="stDateInput"] *,
+    [data-testid="stSelectbox"] *,
+    [data-testid="stMultiSelect"] * {
+        color: #222222 !important;
+        -webkit-text-fill-color: #222222 !important;
     }
 
-    /* Streamlit/BaseWeb inputs. */
-    input,
-    textarea,
-    [data-baseweb="input"],
-    [data-baseweb="textarea"],
-    [data-baseweb="input"] > div,
-    [data-baseweb="textarea"] > div {
+    [data-testid="stTextInput"] [data-baseweb="input"],
+    [data-testid="stTextInput"] [data-baseweb="input"] > div,
+    [data-testid="stTextArea"] [data-baseweb="textarea"],
+    [data-testid="stTextArea"] [data-baseweb="textarea"] > div,
+    [data-testid="stNumberInput"] [data-baseweb="input"],
+    [data-testid="stNumberInput"] [data-baseweb="input"] > div,
+    [data-testid="stDateInput"] [data-baseweb="input"],
+    [data-testid="stDateInput"] [data-baseweb="input"] > div,
+    [data-testid="stSelectbox"] [data-baseweb="select"],
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+    [data-testid="stMultiSelect"] [data-baseweb="select"],
+    [data-testid="stMultiSelect"] [data-baseweb="select"] > div {
         background: #ffffff !important;
         background-color: #ffffff !important;
-        color: #1f2937 !important;
-        border-color: #9ca3af !important;
-        -webkit-text-fill-color: #1f2937 !important;
+        border-color: #b8b8b8 !important;
+        box-shadow: none !important;
     }
 
-    input::placeholder,
-    textarea::placeholder {
-        color: #6b7280 !important;
-        opacity: 1 !important;
-        -webkit-text-fill-color: #6b7280 !important;
-    }
-
-    /* Select boxes and multiselects. */
-    div[data-baseweb="select"],
-    div[data-baseweb="select"] > div {
+    input, textarea {
         background: #ffffff !important;
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-        border-color: #9ca3af !important;
+        color: #222222 !important;
+        -webkit-text-fill-color: #222222 !important;
+        caret-color: #222222 !important;
     }
 
-    div[data-baseweb="select"] *,
-    div[data-baseweb="select"] span {
-        color: #1f2937 !important;
-        -webkit-text-fill-color: #1f2937 !important;
+    input::placeholder, textarea::placeholder {
+        color: #777777 !important;
+        -webkit-text-fill-color: #777777 !important;
     }
 
-    /* Dropdown menus/popovers. */
+    /* Dropdown popup */
     [data-baseweb="popover"],
     [data-baseweb="popover"] > div,
     [data-baseweb="menu"],
     [role="listbox"] {
         background: #ffffff !important;
         background-color: #ffffff !important;
-        color: #1f2937 !important;
+        color: #222222 !important;
     }
 
     [role="option"] {
         background: #ffffff !important;
-        color: #1f2937 !important;
+        color: #222222 !important;
     }
 
     [role="option"]:hover,
     [role="option"][aria-selected="true"] {
-        background: #eff6ff !important;
+        background: #eaf3fb !important;
         color: #005ea8 !important;
     }
 
-    /* Multiselect tags. */
-    span[data-baseweb="tag"] {
-        background: #e6f2ff !important;
+    /* Multiselect chips */
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
+        background: #eaf3fb !important;
         color: #005ea8 !important;
     }
 
-    span[data-baseweb="tag"] *,
-    span[data-baseweb="tag"] span {
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] * {
         color: #005ea8 !important;
         -webkit-text-fill-color: #005ea8 !important;
     }
 
-    /* Buttons. */
+    /* Buttons */
     .stButton > button,
     .stDownloadButton > button {
         background: #005ea8 !important;
         background-color: #005ea8 !important;
         color: #ffffff !important;
         border: 1px solid #005ea8 !important;
-        font-weight: 600 !important;
+        box-shadow: none !important;
+    }
+
+    .stButton > button *,
+    .stDownloadButton > button * {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
 
     .stButton > button:hover,
     .stDownloadButton > button:hover {
         background: #004b87 !important;
         background-color: #004b87 !important;
-        color: #ffffff !important;
     }
 
-    .stButton > button *,
-    .stButton > button p,
-    .stButton > button span,
-    .stButton > button div,
-    .stDownloadButton > button *,
-    .stDownloadButton > button p,
-    .stDownloadButton > button span,
-    .stDownloadButton > button div {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-    }
-
-    /* Expanders/cards. */
+    /* Expander */
     [data-testid="stExpander"],
-    [data-testid="stExpander"] > details,
-    [data-testid="stExpander"] summary {
+    [data-testid="stExpander"] details,
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary > div {
         background: #ffffff !important;
         background-color: #ffffff !important;
-        color: #1f2937 !important;
-        border-color: #d1d5db !important;
+        color: #222222 !important;
+        border-color: #dddddd !important;
     }
 
-    /* Checkboxes, radio buttons, and other form controls. */
-    [data-testid="stCheckbox"],
-    [data-testid="stRadio"],
-    [data-testid="stSelectbox"],
-    [data-testid="stMultiSelect"],
-    [data-testid="stTextInput"],
-    [data-testid="stTextArea"],
-    [data-testid="stNumberInput"],
-    [data-testid="stDateInput"] {
-        color: #1f2937 !important;
+    /* Alerts/messages should stay light */
+    [data-testid="stAlert"] {
+        background: #f8f9fa !important;
+        color: #222222 !important;
+        border-color: #d6d6d6 !important;
     }
 
-    /* Number/date input containers. */
-    [data-testid="stNumberInput"] [data-baseweb="input"],
-    [data-testid="stDateInput"] [data-baseweb="input"] {
-        background: #ffffff !important;
-        color: #1f2937 !important;
-    }
-
-    /* Code / JSON preview should remain readable on white. */
-    pre,
-    code,
+    /* JSON/code output */
+    [data-testid="stJson"],
     [data-testid="stCode"],
-    [data-testid="stJson"] {
-        background: #f8fafc !important;
-        background-color: #f8fafc !important;
-        color: #1f2937 !important;
-        border-color: #d1d5db !important;
+    pre,
+    code {
+        background: #f7f7f7 !important;
+        background-color: #f7f7f7 !important;
+        color: #222222 !important;
     }
 
-    /* Links. */
+    hr {
+        border-color: #dddddd !important;
+    }
+
     a {
         color: #005ea8 !important;
-    }
-
-    /* Remove dark-looking horizontal rules. */
-    hr {
-        border-color: #d1d5db !important;
-    }
-
-    .section-header {
-        color: #005ea8 !important;
-        border-bottom: 2px solid #dbeafe;
-        padding-bottom: 8px;
-        margin-top: 30px;
-        margin-bottom: 20px;
-    }
-
-    .question-help {
-        background: #f8fbff !important;
-        background-color: #f8fbff !important;
-        color: #1f2937 !important;
-        border-left: 4px solid #005ea8;
-        padding: 10px 14px;
-        margin: 8px 0 16px 0;
-    }
-
-    .saved-indicator {
-        background: #eff6ff !important;
-        background-color: #eff6ff !important;
-        color: #1f2937 !important;
-        border: 1px solid #bfdbfe;
-        padding: 10px 14px;
-        margin-top: 8px;
-        margin-bottom: 8px;
-        border-radius: 4px;
     }
     </style>
     """,
@@ -519,8 +462,6 @@ def default_contact_index(options):
     """
     preferred_terms = (
         "call center",
-        "webmaster",
-        "general outreach",
         "contact center",
         "customer service",
         "customer contact",
