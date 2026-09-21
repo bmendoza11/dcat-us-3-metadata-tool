@@ -1991,7 +1991,8 @@ st.markdown(
 
 st.caption(
     "If you need to add another DCAT-US property, select it below "
-    "and enter its value. The tool does not transform or validate "
+    "and enter its value. These are optional properties that are not collected in the questions above." 
+    "The tool does not transform or validate "
     "the value you enter. You are responsible for ensuring the "
     "value has the correct DCAT-US structure and format."
 )
