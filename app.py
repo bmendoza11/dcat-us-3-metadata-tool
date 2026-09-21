@@ -36,7 +36,8 @@ st.markdown(
     """
     <style>
     div[data-testid="stVerticalBlock"] > div {
-    margin-bottom: 36px;
+    margin-bottom: 20px;
+    margin-top: 20px;
     }
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"],
     [data-testid="stMain"], section.main, .main, .block-container {
