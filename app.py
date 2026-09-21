@@ -931,6 +931,12 @@ title = st.text_input(
 # Q4 DESCRIPTION
 # ============================================================
 
+
+description = st.text_area(
+    "Dataset description in plain language. **(Required)**",
+    height=160,
+    key=f"description_{dataset_number}"
+)
 st.markdown(
     """
     <div class="question-help">
@@ -943,12 +949,6 @@ st.markdown(
     </div>
     """,
     unsafe_allow_html=True
-)
-
-description = st.text_area(
-    "Dataset description in plain language. **(Required)**",
-    height=160,
-    key=f"description_{dataset_number}"
 )
 
 
