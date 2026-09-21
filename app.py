@@ -934,7 +934,6 @@ title = st.text_input(
 st.markdown(
     """
     <div class="question-help">
-    <strong>Describe what these data contain in plain language.</strong><br><br>
     Example:<br>
     “The Current Population Survey (CPS) is a monthly survey of households conducted
     by the Census Bureau for the Bureau of Labor Statistics. In addition to the
