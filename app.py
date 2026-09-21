@@ -1979,7 +1979,7 @@ contract_number = st.text_input(
 )
 
 # ============================================================
-# Q20 ADDITIONAL DCAT-US PROPERTY
+# Q20 ADDITIONAL DCAT-US PROPERTIES
 # ============================================================
 
 st.markdown(
@@ -1989,77 +1989,596 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.caption(
-    "If you need to add another DCAT-US property, select it below "
-    "and enter its value. These are optional properties that are not collected in the questions above." 
-    "The tool does not transform or validate "
-    "the value you enter. You are responsible for ensuring the "
-    "value has the correct DCAT-US structure and format."
+st.markdown(
+    """
+    <div class="question-help">
+    <strong>Optional:</strong> Add any DCAT-US 3.0 dataset properties that
+    were not collected in the questions above.
+    <br><br>
+    Select a property to see what it means and what kind of value it expects.
+    For properties that require a structured DCAT-US object or array, you can
+    enter the value as JSON.
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
+# These are the Dataset properties documented by resources.data.gov that
+# are not already collected by the questions above.
+#
+# Source:
+# https://resources.data.gov/standards/catalog/dcat-us-3/dataset/
+#
+# "input" controls the UI:
+#   text       = one string / URI / date / duration
+#   select     = controlled value
+#   json       = object or array of DCAT-US values
+#   json_array = array of simple values
+#
+# The descriptions and examples below follow the DCAT-US 3.0 Dataset
+# reference on resources.data.gov.
+ADDITIONAL_PROPERTY_DEFINITIONS = {
+    "@id": {
+        "label": "@id",
+        "description": "A URI identifying the Dataset.",
+        "input": "text",
+        "placeholder": "https://example.gov/datasets/example",
+    },
+    "accrualPeriodicity": {
+        "label": "accrualPeriodicity",
+        "description": "The frequency at which the Dataset is updated.",
+        "input": "select",
+        "options": [
+            "continual",
+            "daily",
+            "weekly",
+            "fortnightly",
+            "monthly",
+            "quarterly",
+            "biannually",
+            "annually",
+            "asNeeded",
+            "irregular",
+            "notPlanned",
+            "unknown",
+        ],
+        "help": (
+            "resources.data.gov also permits ISO 8601 recurring values "
+            "(for example, R/P1Y) and Dublin Core frequency terms. "
+            "Use JSON mode below if you need one of those values."
+        ),
+    },
+    "category": {
+        "label": "category",
+        "description": "High-level categories for the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Concept", "prefLabel": "Climate"}]',
+    },
+    "conformsTo": {
+        "label": "conformsTo",
+        "description": "Standards, schemas, or profiles the dataset follows.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Standard", "title": "DCAT-US 3.0", '
+            '"identifier": "https://resources.data.gov/dcat-us/3.0.0"}]'
+        ),
+    },
+    "contributor": {
+        "label": "contributor",
+        "description": "Agents that contributed to the Dataset.",
+        "input": "json",
+        "example": '[{"@type": "Agent", "name": "Example Agency"}]',
+    },
+    "created": {
+        "label": "created",
+        "description": "The date on which the Dataset was first created.",
+        "input": "text",
+        "placeholder": "YYYY, YYYY-MM, or YYYY-MM-DD",
+    },
+    "creator": {
+        "label": "creator",
+        "description": "The person or organization responsible for creating the dataset.",
+        "input": "json",
+        "example": '{"@type": "Agent", "name": "Example Agency"}',
+    },
+    "first": {
+        "label": "first",
+        "description": "The first Dataset in the sequence to which this dataset belongs.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/2000"}',
+    },
+    "hasCurrentVersion": {
+        "label": "hasCurrentVersion",
+        "description": "Reference to the current/latest version of the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v2"}',
+    },
+    "hasPart": {
+        "label": "hasPart",
+        "description": "Related datasets that are part of this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/part-1"}]',
+    },
+    "hasQualityMeasurement": {
+        "label": "hasQualityMeasurement",
+        "description": (
+            "Quality measurements for the dataset, such as completeness, "
+            "accuracy, or timeliness."
+        ),
+        "input": "json",
+        "example": (
+            '[{"@type": "QualityMeasurement", '
+            '"value": 0.98}]'
+        ),
+    },
+    "hasVersion": {
+        "label": "hasVersion",
+        "description": "Related datasets that are versions, editions, or adaptations of this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v2"}]',
+    },
+    "image": {
+        "label": "image",
+        "description": "A thumbnail image illustrating the dataset.",
+        "input": "text",
+        "placeholder": "https://example.gov/images/dataset.png",
+    },
+    "isReferencedBy": {
+        "label": "isReferencedBy",
+        "description": "Links to related resources that reference or cite the dataset.",
+        "input": "json_array",
+        "example": '["https://example.gov/publications/report.pdf"]',
+    },
+    "issued": {
+        "label": "issued",
+        "description": "The date when the dataset was first published.",
+        "input": "text",
+        "placeholder": "YYYY, YYYY-MM, or YYYY-MM-DD",
+    },
+    "language": {
+        "label": "language",
+        "description": "ISO 639-1 language code(s), such as en or es.",
+        "input": "json_array",
+        "example": '["en"]',
+    },
+    "liabilityStatement": {
+        "label": "liabilityStatement",
+        "description": (
+            "A statement about limitations of responsibility, accuracy, "
+            "reliability, completeness, or endorsement."
+        ),
+        "input": "text",
+        "placeholder": "Enter the liability statement.",
+    },
+    "metadataDistribution": {
+        "label": "metadataDistribution",
+        "description": "Distribution of the original metadata document from which this dataset metadata was derived.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Distribution", '
+            '"accessURL": "https://example.gov/metadata/data.json", '
+            '"mediaType": "application/json"}]'
+        ),
+    },
+    "otherIdentifier": {
+        "label": "otherIdentifier",
+        "description": "Additional identifiers, such as a DOI or other persistent identifier.",
+        "input": "json",
+        "example": '[{"notation": "10.1234/example"}]',
+    },
+    "page": {
+        "label": "page",
+        "description": "Pages or documents about the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Document", '
+            '"accessURL": "https://example.gov/about-dataset"}]'
+        ),
+    },
+    "previousVersion": {
+        "label": "previousVersion",
+        "description": "Reference to the previous version of the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v1"}',
+    },
+    "provenance": {
+        "label": "provenance",
+        "description": "Statements about the lineage of the dataset.",
+        "input": "json_array",
+        "example": '["Derived from administrative records collected by Example Agency."]',
+    },
+    "purpose": {
+        "label": "purpose",
+        "description": "The purpose of the dataset.",
+        "input": "text",
+        "placeholder": "Describe why the dataset was created.",
+    },
+    "qualifiedAttribution": {
+        "label": "qualifiedAttribution",
+        "description": "Agents with specific responsibilities for the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Attribution", '
+            '"agent": {"@type": "Agent", "name": "Example Agency"}}]'
+        ),
+    },
+    "qualifiedRelation": {
+        "label": "qualifiedRelation",
+        "description": (
+            "A detailed relationship between the dataset and another "
+            "resource, including the role of that relationship."
+        ),
+        "input": "json",
+        "example": (
+            '[{"@type": "Relationship", '
+            '"hadRole": {"@type": "Concept", "prefLabel": "source"}}]'
+        ),
+    },
+    "relation": {
+        "label": "relation",
+        "description": "Links to related resources when the relationship is not otherwise specified.",
+        "input": "json_array",
+        "example": '["https://example.gov/related-resource"]',
+    },
+    "replaces": {
+        "label": "replaces",
+        "description": "Datasets replaced by this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/old"}]',
+    },
+    "rightsHolder": {
+        "label": "rightsHolder",
+        "description": "Organizations holding rights on the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Organization", "name": "Example Agency"}]',
+    },
+    "sample": {
+        "label": "sample",
+        "description": "Sample distributions for the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Distribution", '
+            '"accessURL": "https://example.gov/sample.csv", '
+            '"mediaType": "text/csv"}]'
+        ),
+    },
+    "scopeNote": {
+        "label": "scopeNote",
+        "description": "A usage note for the dataset.",
+        "input": "text",
+        "placeholder": "Enter a note about the scope of the dataset.",
+    },
+    "source": {
+        "label": "source",
+        "description": "Datasets from which this dataset was derived.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/source"}]',
+    },
+    "spatialResolutionInMeters": {
+        "label": "spatialResolutionInMeters",
+        "description": "The smallest spatial distance between data points, in meters.",
+        "input": "text",
+        "placeholder": "Example: 100",
+    },
+    "status": {
+        "label": "status",
+        "description": (
+            "The lifecycle status of the dataset, such as completed, "
+            "deprecated, under development, or withdrawn."
+        ),
+        "input": "json",
+        "example": '{"@type": "Concept", "prefLabel": "completed"}',
+    },
+    "subject": {
+        "label": "subject",
+        "description": "Primary subjects for the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Concept", "prefLabel": "Employment"}]',
+    },
+    "supportedSchema": {
+        "label": "supportedSchema",
+        "description": "The schema supported by the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/schema"}',
+    },
+    "temporalResolution": {
+        "label": "temporalResolution",
+        "description": "The smallest time interval between data points, using xsd:duration format.",
+        "input": "text",
+        "placeholder": "Example: P1D",
+    },
+    "version": {
+        "label": "version",
+        "description": "The version indicator or identifier of the resource.",
+        "input": "text",
+        "placeholder": "Example: 2024.1",
+    },
+    "versionNotes": {
+        "label": "versionNotes",
+        "description": "Notes describing how this version differs from earlier versions.",
+        "input": "text",
+        "placeholder": "Describe the changes in this version.",
+    },
+    "wasAttributedTo": {
+        "label": "wasAttributedTo",
+        "description": "Agents attributed to this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Agent", "name": "Example Agency"}]',
+    },
+    "wasGeneratedBy": {
+        "label": "wasGeneratedBy",
+        "description": "Activities that generated or provide business context for creation of the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Activity", "name": "Example project"}]',
+    },
+    "wasUsedBy": {
+        "label": "wasUsedBy",
+        "description": "Activities that used the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Activity", "name": "Example analysis"}]',
+    },
+}
+
+# Keep this list synchronized with the definitions above. The existing
+# questions already collect these properties, so they should not appear
+# in the additional-property selector.
+ADDITIONAL_PROPERTY_OPTIONS = [
+    property_name
+    for property_name in ADDITIONAL_PROPERTY_DEFINITIONS
+    if property_name not in {
+        "title",
+        "description",
+        "identifier",
+        "publisher",
+        "contactPoint",
+        "keyword",
+        "theme",
+        "accessRights",
+        "accessRestriction",
+        "cuiRestriction",
+        "useRestriction",
+        "license",
+        "rights",
+        "temporal",
+        "spatial",
+        "modified",
+        "describedBy",
+        "landingPage",
+    }
+]
+
 additional_key = f"additional_properties_{dataset_number}"
+
 if additional_key not in st.session_state:
     st.session_state[additional_key] = {}
 
 saved_additional = st.session_state[additional_key]
 
+# Show properties already added to this dataset.
 if saved_additional:
+    st.markdown("**Properties added to this dataset**")
+
     for property_name, property_value in saved_additional.items():
-        st.markdown(
-            f'<div class="saved-indicator">'
-            f'<strong>{property_name}</strong>: {property_value}'
-            f'</div>',
-            unsafe_allow_html=True
+        display_value = json.dumps(
+            property_value,
+            ensure_ascii=False
         )
 
-additional_done_key = f"additional_done_{dataset_number}"
-if additional_done_key not in st.session_state:
-    st.session_state[additional_done_key] = False
+        col_property, col_remove = st.columns([5, 1])
 
-if not st.session_state[additional_done_key]:
-    additional_property = st.selectbox(
-        "Is there another property you would like to add?",
-        ["No"] + sorted(ADDITIONAL_PROPERTY_OPTIONS),
+        with col_property:
+            st.markdown(
+                f"""
+                <div class="saved-indicator">
+                <strong>{property_name}</strong><br>
+                <code>{display_value}</code>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_remove:
+            st.write("")
+            if st.button(
+                "Remove",
+                key=f"remove_additional_{dataset_number}_{property_name}"
+            ):
+                del saved_additional[property_name]
+                st.session_state[additional_key] = saved_additional
+                st.rerun()
+
+    st.markdown("")
+
+available_properties = [
+    property_name
+    for property_name in ADDITIONAL_PROPERTY_OPTIONS
+    if property_name not in saved_additional
+]
+
+if available_properties:
+
+    selected_additional_property = st.selectbox(
+        "Select a DCAT-US property to add",
+        ["Select a property"] + sorted(available_properties),
         key=f"additional_property_{dataset_number}"
     )
 
-    if additional_property != "No":
-        additional_value = st.text_area(
-            f"Value for {additional_property}",
-            help=(
-                "The tool will place this value into the JSON as entered. "
-                "It will not transform the value into a DCAT-US object, "
-                "array, date, URI, or other structure."
-            ),
-            key=f"additional_value_{dataset_number}"
+    if selected_additional_property != "Select a property":
+
+        property_definition = ADDITIONAL_PROPERTY_DEFINITIONS[
+            selected_additional_property
+        ]
+
+        st.markdown(
+            f"**{property_definition['label']}**"
         )
 
+        st.caption(
+            property_definition["description"]
+        )
+
+        input_type = property_definition["input"]
+
+        if input_type == "select":
+
+            selected_additional_value = st.selectbox(
+                "Value",
+                property_definition["options"],
+                key=f"additional_select_{dataset_number}"
+            )
+
+            if property_definition.get("help"):
+                st.caption(property_definition["help"])
+
+        elif input_type == "json":
+
+            example = property_definition.get(
+                "example",
+                "{}"
+            )
+
+            st.caption(
+                "This property expects a structured DCAT-US value. "
+                "Enter valid JSON."
+            )
+
+            selected_additional_value = st.text_area(
+                "Value (JSON)",
+                placeholder=example,
+                height=150,
+                key=f"additional_json_{dataset_number}"
+            )
+
+            with st.expander("Show example"):
+                st.code(example, language="json")
+
+        elif input_type == "json_array":
+
+            example = property_definition.get(
+                "example",
+                "[]"
+            )
+
+            st.caption(
+                "This property expects an array. "
+                "Enter a JSON array, for example [\"value1\", \"value2\"]."
+            )
+
+            selected_additional_value = st.text_area(
+                "Value (JSON array)",
+                placeholder=example,
+                height=120,
+                key=f"additional_json_array_{dataset_number}"
+            )
+
+            with st.expander("Show example"):
+                st.code(example, language="json")
+
+        else:
+
+            selected_additional_value = st.text_input(
+                "Value",
+                placeholder=property_definition.get(
+                    "placeholder",
+                    ""
+                ),
+                key=f"additional_text_{dataset_number}"
+            )
+
         if st.button(
-            "Add Property",
+            "＋ Add Property",
             key=f"add_property_{dataset_number}"
         ):
-            if not additional_value.strip():
-                st.warning("Enter a value before adding this property.")
-            elif additional_property in saved_additional:
+
+            raw_value = str(
+                selected_additional_value
+            ).strip()
+
+            if not raw_value:
+
                 st.warning(
-                    "That property has already been added. "
-                    "Choose another property."
+                    "Enter a value before adding this property."
                 )
+
             else:
-                saved_additional[additional_property] = (
-                    additional_value.strip()
-                )
-                st.session_state[additional_key] = saved_additional
-                st.rerun()
-    else:
-        st.session_state[additional_done_key] = True
-        st.rerun()
+
+                final_value = raw_value
+
+                # Parse structured values so the generated dataset contains
+                # actual JSON arrays/objects rather than strings containing
+                # JSON text.
+                if input_type in {"json", "json_array"}:
+
+                    try:
+
+                        final_value = json.loads(
+                            raw_value
+                        )
+
+                    except json.JSONDecodeError as error:
+
+                        st.error(
+                            "The value is not valid JSON. "
+                            f"Check the brackets, quotes, and commas. "
+                            f"Details: {error.msg}"
+                        )
+
+                        final_value = None
+
+                    if (
+                        final_value is not None
+                        and input_type == "json_array"
+                        and not isinstance(final_value, list)
+                    ):
+
+                        st.error(
+                            "This property expects a JSON array, "
+                            "such as [\"value1\", \"value2\"]."
+                        )
+
+                        final_value = None
+
+                if final_value is not None:
+
+                    saved_additional[
+                        selected_additional_property
+                    ] = final_value
+
+                    st.session_state[
+                        additional_key
+                    ] = saved_additional
+
+                    st.success(
+                        f"✓ {selected_additional_property} "
+                        "was added to this dataset."
+                    )
+
+                    st.rerun()
+
+else:
+
+    st.success(
+        "✓ All available additional Dataset properties "
+        "have been added."
+    )
+
+st.markdown(
+    """
+    <div class="question-help">
+    <strong>Important:</strong> This section follows the DCAT-US 3.0
+    Dataset property definitions in <a href="https://resources.data.gov/standards/catalog/dcat-us-3/dataset/" target="_blank">resources.data.gov</a>.
+    Structured properties are entered as JSON so that objects and arrays
+    remain correctly typed in the generated metadata. The tool checks that
+    JSON is syntactically valid, but it does not perform full DCAT-US schema
+    validation.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.warning(
-    "Important: this tool does not transform or validate values entered "
-    "under Additional DCAT-US Properties. Make sure each value follows "
-    "the DCAT-US 3.0 schema. After generating your JSON, validate it at "
-    "https://harvest.data.gov/validate/."
+    "After generating your catalog, validate the complete JSON against "
+    "the DCAT-US 3.0 schema before publishing."
 )
 
 # ============================================================
