@@ -40,6 +40,11 @@ st.markdown(
         background: #ffffff !important;
         color: #222222 !important;
     }
+   
+    div[data-testid="stVerticalBlock"] > div {
+    margin-bottom: 16px;
+    }
+""", unsafe_allow_html=True)
 
     /* Top-level Streamlit chrome */
     [data-testid="stHeader"],
