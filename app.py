@@ -942,6 +942,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+description = st.text_area(
+    "Dataset description in plain language. **(Required)**",
+    height=160,
+    key=f"description_{dataset_number}"
+)
 
 
 # ============================================================
