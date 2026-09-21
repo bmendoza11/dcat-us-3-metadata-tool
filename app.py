@@ -933,24 +933,16 @@ title = st.text_input(
 
 
 description = st.text_area(
-    "Dataset description in plain language. **(Required)**",
-    height=160,
-    key=f"description_{dataset_number}"
-)
-st.markdown(
-    """
-    <div class="question-help">
-    Example:<br>
+    "Dataset description in plain language. **(Required)**"
+    "Example: "
     “The Current Population Survey (CPS) is a monthly survey of households conducted
     by the Census Bureau for the Bureau of Labor Statistics. In addition to the
     national unemployment rate, it provides data on employment, the unemployment
     rate, persons not in the labor force, hours of work, earnings, and other
-    demographic and labor force characteristics.”
-    </div>
-    """,
-    unsafe_allow_html=True
+    demographic and labor force characteristics.”,
+    height=160,
+    key=f"description_{dataset_number}"
 )
-
 
 # ============================================================
 # Q5 IDENTIFIER
