@@ -35,16 +35,14 @@ THEMES_FILE = "themes.json"
 st.markdown(
     """
     <style>
+    div[data-testid="stVerticalBlock"] > div {
+    margin-bottom: 16px;
+    }
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"],
     [data-testid="stMain"], section.main, .main, .block-container {
         background: #ffffff !important;
         color: #222222 !important;
     }
-   
-    div[data-testid="stVerticalBlock"] > div {
-    margin-bottom: 16px;
-    }
-""", unsafe_allow_html=True)
 
     /* Top-level Streamlit chrome */
     [data-testid="stHeader"],
