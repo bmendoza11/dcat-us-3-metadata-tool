@@ -272,14 +272,14 @@ def is_valid_dcat_date(value):
     if not value:
         return True
 
-    if re.fullmatch(r"\\d{4}", value):
+    if re.fullmatch(r"\d{4}", value):
         return True
 
-    if re.fullmatch(r"\\d{4}-\\d{2}", value):
+    if re.fullmatch(r"\d{4}-\d{2}", value):
         year, month = map(int, value.split("-"))
         return 1 <= month <= 12
 
-    if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", value):
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         try:
             datetime.date.fromisoformat(value)
             return True
