@@ -1,28 +1,35 @@
 import streamlit as st
 import json
 import os
-import re
 import datetime
-from io import BytesIO
-
-from openpyxl import Workbook, load_workbook
-from openpyxl.workbook.defined_name import DefinedName
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.utils import get_column_letter
+import re
 
 from dcat_builder import build_dataset, build_catalog
+from excel_mode import (
+    create_template,
+    generalized_contact,
+    read_new_contacts,
+    read_rows,
+    split_values,
+    parse_theme_descriptions,
+    contact_display,
+)
 
 
 # ============================================================
-# CONFIG
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
     page_title="DCAT-US 3.0 Metadata Builder",
     page_icon="📊",
-    layout="wide",
+    layout="wide"
 )
+
+
+# ============================================================
+# FILE LOCATIONS
+# ============================================================
 
 CONTACTS_FILE = "contacts.json"
 TAGS_FILE = "tags.json"
@@ -30,28 +37,31 @@ THEMES_FILE = "themes.json"
 
 
 # ============================================================
-# STYLE
+# LIGHT BLUE / WHITE STYLING
 # ============================================================
-
+# Keep Streamlit/BaseWeb components light even when the user's
+# system/browser preference is dark mode.
 st.markdown(
     """
     <style>
     div[data-testid="stVerticalBlock"] > div {
-        margin-bottom: 16px;
-        margin-top: 8px;
+    margin-bottom: 20px;
+    margin-top: 20px;
     }
-
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"],
     [data-testid="stMain"], section.main, .main, .block-container {
         background: #ffffff !important;
         color: #222222 !important;
     }
 
-    [data-testid="stHeader"], [data-testid="stToolbar"],
+    /* Top-level Streamlit chrome */
+    [data-testid="stHeader"],
+    [data-testid="stToolbar"],
     [data-testid="stDecoration"] {
         background: #ffffff !important;
     }
 
+    /* Text */
     h1, h2, h3, h4, h5, h6, p, label,
     [data-testid="stMarkdownContainer"],
     [data-testid="stCaptionContainer"] {
@@ -62,6 +72,7 @@ st.markdown(
         color: #005ea8 !important;
     }
 
+    /* Inputs: force every nested BaseWeb layer to white */
     [data-testid="stTextInput"] *,
     [data-testid="stTextArea"] *,
     [data-testid="stNumberInput"] *,
@@ -76,6 +87,10 @@ st.markdown(
     [data-testid="stTextInput"] [data-baseweb="input"] > div,
     [data-testid="stTextArea"] [data-baseweb="textarea"],
     [data-testid="stTextArea"] [data-baseweb="textarea"] > div,
+    [data-testid="stNumberInput"] [data-baseweb="input"],
+    [data-testid="stNumberInput"] [data-baseweb="input"] > div,
+    [data-testid="stDateInput"] [data-baseweb="input"],
+    [data-testid="stDateInput"] [data-baseweb="input"] > div,
     [data-testid="stSelectbox"] [data-baseweb="select"],
     [data-testid="stSelectbox"] [data-baseweb="select"] > div,
     [data-testid="stMultiSelect"] [data-baseweb="select"],
@@ -98,9 +113,13 @@ st.markdown(
         -webkit-text-fill-color: #777777 !important;
     }
 
-    [data-baseweb="popover"], [data-baseweb="popover"] > div,
-    [data-baseweb="menu"], [role="listbox"] {
+    /* Dropdown popup */
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] > div,
+    [data-baseweb="menu"],
+    [role="listbox"] {
         background: #ffffff !important;
+        background-color: #ffffff !important;
         color: #222222 !important;
     }
 
@@ -109,71 +128,424 @@ st.markdown(
         color: #222222 !important;
     }
 
-    [role="option"]:hover, [role="option"][aria-selected="true"] {
+    [role="option"]:hover,
+    [role="option"][aria-selected="true"] {
         background: #eaf3fb !important;
         color: #005ea8 !important;
     }
 
+    /* Multiselect chips */
     [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
         background: #eaf3fb !important;
         color: #005ea8 !important;
     }
 
-    .stButton > button, .stDownloadButton > button {
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] * {
+        color: #005ea8 !important;
+        -webkit-text-fill-color: #005ea8 !important;
+    }
+
+    /* Buttons */
+    .stButton > button,
+    .stDownloadButton > button {
         background: #005ea8 !important;
         background-color: #005ea8 !important;
         color: #ffffff !important;
         border: 1px solid #005ea8 !important;
+        box-shadow: none !important;
     }
 
-    .stButton > button:hover, .stDownloadButton > button:hover {
+    .stButton > button *,
+    .stDownloadButton > button * {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
         background: #004b87 !important;
         background-color: #004b87 !important;
     }
 
-    [data-testid="stExpander"], [data-testid="stExpander"] details,
-    [data-testid="stExpander"] summary {
+    /* Expander */
+    [data-testid="stExpander"],
+    [data-testid="stExpander"] details,
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary > div {
         background: #ffffff !important;
+        background-color: #ffffff !important;
         color: #222222 !important;
         border-color: #dddddd !important;
     }
 
+    /* Alerts/messages should stay light */
     [data-testid="stAlert"] {
         background: #f8f9fa !important;
         color: #222222 !important;
         border-color: #d6d6d6 !important;
     }
 
-    [data-testid="stJson"], [data-testid="stCode"], pre, code {
+    /* JSON/code output */
+    [data-testid="stJson"],
+    [data-testid="stCode"],
+    pre,
+    code {
         background: #f7f7f7 !important;
+        background-color: #f7f7f7 !important;
         color: #222222 !important;
     }
 
-    hr { border-color: #dddddd !important; }
-    a { color: #005ea8 !important; }
-
-    .section-header {
-        margin-top: 24px;
-        margin-bottom: 10px;
+    hr {
+        border-color: #dddddd !important;
     }
 
-    .saved-indicator {
-        background: #f0f7fc;
-        border-left: 4px solid #005ea8;
-        padding: 10px 14px;
-        border-radius: 4px;
-    }
-
-    .question-help {
-        background: #f7fbff;
-        border: 1px solid #d6e8f5;
-        padding: 12px 14px;
-        border-radius: 6px;
+    a {
+        color: #005ea8 !important;
     }
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
+
+
+# ============================================================
+# JSON HELPERS
+# ============================================================
+
+def load_json_file(filename, default):
+
+    if not os.path.exists(filename):
+        return default
+
+    try:
+        with open(
+            filename,
+            "r",
+            encoding="utf-8"
+        ) as f:
+            return json.load(f)
+
+    except Exception:
+        return default
+
+
+def save_json_file(filename, data):
+
+    with open(
+        filename,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            data,
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
+
+
+# ============================================================
+# NORMALIZATION
+# ============================================================
+
+def normalize_text(value):
+
+    if not value:
+        return ""
+
+    return (
+        str(value)
+        .strip()
+        .lower()
+    )
+
+
+def normalize_tag(value):
+
+    return normalize_text(value)
+
+
+def normalize_theme_name(value):
+
+    return normalize_text(value)
+
+
+# ============================================================
+# DATE VALIDATION
+# ============================================================
+
+def is_valid_dcat_date(value):
+    """Allow YYYY, YYYY-MM, or YYYY-MM-DD and validate real dates."""
+    value = normalize_text(value)
+    if not value:
+        return True
+
+    if re.fullmatch(r"\d{4}", value):
+        return True
+
+    if re.fullmatch(r"\d{4}-\d{2}", value):
+        year, month = map(int, value.split("-"))
+        return 1 <= month <= 12
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        try:
+            datetime.date.fromisoformat(value)
+            return True
+        except ValueError:
+            return False
+
+    return False
+
+
+def validate_date_field(label, value):
+    if value and not is_valid_dcat_date(value):
+        st.warning(
+            f"{label} must use YYYY, YYYY-MM, or YYYY-MM-DD. "
+            "Please correct the format before saving."
+        )
+
+
+# ============================================================
+# DCAT-US DATASET PROPERTIES
+# ============================================================
+
+DCAT_DATASET_PROPERTIES = [
+    "accessRights", "accessRestriction", "accrualPeriodicity",
+    "category", "conformsTo", "contributor", "created", "creator",
+    "description", "distribution", "first", "hasCurrentVersion",
+    "hasPart", "hasQualityMeasurement", "hasVersion", "image",
+    "inventoried", "isReferencedBy", "issued", "keyword", "language",
+    "landingPage", "liabilityStatement", "metadataDistribution",
+    "modified", "otherIdentifier", "page", "previousVersion",
+    "provenance", "purpose", "qualifiedAttribution", "qualifiedRelation",
+    "relation", "replaces", "rights", "rightsHolder", "sample",
+    "scopeNote", "source", "spatial", "spatialResolutionInMeters",
+    "status", "subject", "supportedSchema", "temporal",
+    "temporalResolution", "theme", "title", "useRestriction",
+    "version", "versionNotes", "wasAttributedTo", "wasGeneratedBy",
+    "wasUsedBy", "cuiRestriction", "describedBy", "identifier",
+    "license", "publisher", "contactPoint",
+]
+
+ADDITIONAL_PROPERTY_OPTIONS = [
+    p for p in DCAT_DATASET_PROPERTIES
+    if p not in {
+        "title", "description", "identifier", "publisher", "contactPoint",
+        "keyword", "theme", "accessRights", "accessRestriction",
+        "cuiRestriction", "useRestriction", "license", "rights",
+        "temporal", "spatial", "modified", "describedBy", "landingPage",
+    }
+]
+
+
+# ============================================================
+# CONTACT HELPERS
+# ============================================================
+
+def normalize_bureau(value):
+
+    """
+    Makes bureau names comparable.
+
+    Examples:
+
+    Bureau of Economic Analysis
+    Bureau of Economic Analysis (BEA)
+
+    become comparable.
+    """
+
+    if not value:
+        return ""
+
+    value = str(value).strip().lower()
+
+    # Remove parenthetical acronym.
+    value = re.sub(
+        r"\s*\([^)]*\)",
+        "",
+        value
+    )
+
+    # Normalize common Census naming differences.
+    census_variants = {
+        "census bureau":
+            "united states census bureau",
+
+        "u.s. census bureau":
+            "united states census bureau",
+
+        "us census bureau":
+            "united states census bureau"
+    }
+
+    value = census_variants.get(
+        value,
+        value
+    )
+
+    # Remove "united states" from USPTO
+    # only for comparison purposes.
+    value = value.replace(
+        "united states patent and trademark office",
+        "patent and trademark office"
+    )
+
+    return value
+
+
+# ============================================================
+# CONTACT HELPERS
+# ============================================================
+
+def get_contacts_for_bureau(
+    contacts,
+    selected_bureau
+):
+
+    selected_normalized = normalize_bureau(
+        selected_bureau
+    )
+
+    matching_contacts = []
+
+    for contact in contacts:
+
+        contact_bureau = normalize_bureau(
+            contact.get("bureau", "")
+        )
+
+        contact_organization = normalize_bureau(
+            contact.get("organization", "")
+        )
+
+        # Match either the bureau field OR
+        # the organization field.
+        if (
+            contact_bureau == selected_normalized
+            or
+            contact_organization == selected_normalized
+        ):
+
+            matching_contacts.append(
+                contact
+            )
+
+    return matching_contacts
+
+
+def contact_display(contact):
+
+    name = contact.get(
+        "name",
+        "Unnamed contact"
+    )
+
+    organization = contact.get(
+        "organization",
+        ""
+    )
+
+    email = contact.get(
+        "email",
+        ""
+    )
+
+    if organization and email:
+        return (
+            f"{name} — "
+            f"{organization} — "
+            f"{email}"
+        )
+
+    if organization:
+        return (
+            f"{name} — {organization}"
+        )
+
+    return name
+
+
+def default_contact_index(options):
+    """
+    Prefer the bureau's most generalized public-facing contact.
+
+    The order is intentional: a call/contact center or general
+    information contact is preferred when available. For bureaus
+    such as BEA, this allows a webmaster contact to be selected
+    automatically when that is the bureau's general contact.
+    """
+    preferred_terms = (
+        "call center",
+        "contact center",
+        "general information",
+        "information center",
+        "information services",
+        "webmaster",
+        "general contact",
+        "customer service",
+        "customer contact",
+        "general",
+        "contact",
+        "public affairs",
+    )
+
+    ranked = []
+
+    for index, option in enumerate(options):
+        normalized = normalize_text(option)
+
+        score = next(
+            (
+                position
+                for position, term in enumerate(preferred_terms)
+                if term in normalized
+            ),
+            999,
+        )
+
+        ranked.append((score, index))
+
+    if not ranked:
+        return 0
+
+    return min(ranked)[1]
+
+
+# ============================================================
+# SAVE CONTACT
+# ============================================================
+
+def save_contact(
+    selected_bureau,
+    name,
+    email,
+    phone,
+    organization
+):
+
+    contacts = load_json_file(
+        CONTACTS_FILE,
+        []
+    )
+
+    new_contact = {
+        "bureau": selected_bureau,
+        "name": name.strip(),
+        "email": email.strip(),
+        "phone": phone.strip(),
+        "organization": organization.strip()
+    }
+
+    contacts.append(
+        new_contact
+    )
+
+    save_json_file(
+        CONTACTS_FILE,
+        contacts
+    )
 
 
 # ============================================================
@@ -181,1812 +553,2880 @@ st.markdown(
 # ============================================================
 
 BUREAUS = {
+
     "Bureau of Economic Analysis": {
         "publisher": "Bureau of Economic Analysis",
         "identifier_code": "BEA",
         "bureauCode": ["006:02"],
         "programCode": ["006:000"],
-        "homepage": "https://www.bea.gov/",
+        "homepage": "https://www.bea.gov/"
     },
+
     "Bureau of Industry and Security": {
         "publisher": "Bureau of Industry and Security",
         "identifier_code": "BIS",
         "bureauCode": ["006:03"],
         "programCode": ["006:000"],
-        "homepage": "https://www.bis.gov/",
+        "homepage": "https://www.bis.gov/"
     },
+
     "Bureau of Labor Statistics": {
         "publisher": "Bureau of Labor Statistics",
         "identifier_code": "BLS",
         "bureauCode": ["006:04"],
         "programCode": ["006:000"],
-        "homepage": "https://www.bls.gov/",
+        "homepage": "https://www.bls.gov/"
     },
+
     "Census Bureau": {
         "publisher": "United States Census Bureau",
         "identifier_code": "CEN",
         "bureauCode": ["006:07"],
         "programCode": ["006:000"],
-        "homepage": "https://www.census.gov/",
+        "homepage": "https://www.census.gov/"
     },
+
     "Economic Development Administration": {
         "publisher": "Economic Development Administration",
         "identifier_code": "EDA",
         "bureauCode": ["006:08"],
         "programCode": ["006:000"],
-        "homepage": "https://www.eda.gov/",
+        "homepage": "https://www.eda.gov/"
     },
+
     "International Trade Administration": {
         "publisher": "International Trade Administration",
         "identifier_code": "ITA",
         "bureauCode": ["006:13"],
         "programCode": ["006:000"],
-        "homepage": "https://www.trade.gov/",
+        "homepage": "https://www.trade.gov/"
     },
+
     "National Oceanic and Atmospheric Administration": {
         "publisher": "National Oceanic and Atmospheric Administration",
         "identifier_code": "NOAA",
         "bureauCode": ["006:20"],
         "programCode": ["006:000"],
-        "homepage": "https://www.noaa.gov/",
+        "homepage": "https://www.noaa.gov/"
     },
+
     "National Institute of Standards and Technology": {
         "publisher": "National Institute of Standards and Technology",
         "identifier_code": "NIST",
         "bureauCode": ["006:19"],
         "programCode": ["006:000"],
-        "homepage": "https://www.nist.gov/",
+        "homepage": "https://www.nist.gov/"
     },
+
     "National Technical Information Service": {
         "publisher": "National Technical Information Service",
         "identifier_code": "NTIS",
         "bureauCode": ["006:21"],
         "programCode": ["006:000"],
-        "homepage": "https://www.ntis.gov/",
+        "homepage": "https://www.ntis.gov/"
     },
+
     "Patent and Trademark Office": {
         "publisher": "United States Patent and Trademark Office",
         "identifier_code": "USPTO",
         "bureauCode": ["006:25"],
         "programCode": ["006:000"],
-        "homepage": "https://www.uspto.gov/",
+        "homepage": "https://www.uspto.gov/"
     },
+
     "National Telecommunications and Information Administration": {
         "publisher": "National Telecommunications and Information Administration",
         "identifier_code": "NTIA",
         "bureauCode": ["006:18"],
         "programCode": ["006:000"],
-        "homepage": "https://www.ntia.gov/",
-    },
+        "homepage": "https://www.ntia.gov/"
+    }
 }
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def load_json_file(filename, default):
-    if not os.path.exists(filename):
-        return default
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
-
-
-def save_json_file(filename, data):
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-def normalize_text(value):
-    if value is None:
-        return ""
-    return str(value).strip().lower()
-
-
-def normalize_bureau(value):
-    value = normalize_text(value)
-    value = re.sub(r"\s*\([^)]*\)", "", value)
-    variants = {
-        "census bureau": "united states census bureau",
-        "u.s. census bureau": "united states census bureau",
-        "us census bureau": "united states census bureau",
-    }
-    value = variants.get(value, value)
-    value = value.replace(
-        "united states patent and trademark office",
-        "patent and trademark office",
-    )
-    return value
-
-
-def split_cell(value):
-    """Excel convention: lists are entered as semicolon-separated values."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(x).strip() for x in value if str(x).strip()]
-    return [x.strip() for x in str(value).split(";") if x.strip()]
-
-
-def is_valid_dcat_date(value):
-    value = normalize_text(value)
-    if not value:
-        return True
-    if re.fullmatch(r"\d{4}", value):
-        return True
-    if re.fullmatch(r"\d{4}-\d{2}", value):
-        return 1 <= int(value.split("-")[1]) <= 12
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
-        try:
-            datetime.date.fromisoformat(value)
-            return True
-        except ValueError:
-            return False
-    return False
-
-
-def contact_from_dataset(dataset):
-    points = dataset.get("contactPoint", [])
-    if not points:
-        return {}
-    point = points[0] or {}
-    email = point.get("hasEmail", "")
-    if isinstance(email, str):
-        email = email.removeprefix("mailto:")
-    return {
-        "name": point.get("fn", ""),
-        "email": email,
-        "phone": point.get("hasTelephone", ""),
-        "organization": point.get("organization-name", ""),
-    }
-
-
-def first_value(value):
-    if isinstance(value, list):
-        return value[0] if value else ""
-    return value or ""
-
-
-def contact_signature(contact):
-    return (
-        normalize_text(contact.get("bureau")),
-        normalize_text(contact.get("name")),
-        normalize_text(contact.get("email")),
-        normalize_text(contact.get("phone")),
-        normalize_text(contact.get("organization")),
-    )
-
-
-def ensure_contact_in_database(contact, bureau):
-    if not contact.get("name"):
-        return
-    contacts = load_json_file(CONTACTS_FILE, [])
-    candidate = dict(contact)
-    candidate["bureau"] = bureau
-
-    signatures = {contact_signature(x) for x in contacts}
-    if contact_signature(candidate) not in signatures:
-        contacts.append(candidate)
-        save_json_file(CONTACTS_FILE, contacts)
-
-
-def ensure_tags_in_database(tags):
-    tags = [normalize_text(x) for x in tags if normalize_text(x)]
-    if not tags:
-        return
-    existing = load_json_file(TAGS_FILE, [])
-    combined = sorted(set(normalize_text(x) for x in existing + tags if normalize_text(x)))
-    save_json_file(TAGS_FILE, combined)
-
-
-def ensure_themes_in_database(themes, descriptions):
-    theme_names = [normalize_text(x) for x in themes if normalize_text(x)]
-    descriptions = [str(x).strip() for x in descriptions]
-    desc_map = {}
-    for i, name in enumerate(theme_names):
-        desc_map[name] = descriptions[i] if i < len(descriptions) else ""
-
-    existing = load_json_file(THEMES_FILE, [])
-    by_name = {
-        normalize_text(x.get("name", "")): x
-        for x in existing
-        if normalize_text(x.get("name", ""))
-    }
-
-    for name in theme_names:
-        if name not in by_name:
-            if not desc_map.get(name):
-                raise ValueError(
-                    f'New theme "{name}" needs a description in the '
-                    f'"theme_descriptions" column.'
-                )
-            by_name[name] = {
-                "name": name,
-                "description": desc_map[name],
-            }
-
-    result = sorted(by_name.values(), key=lambda x: normalize_text(x.get("name", "")))
-    save_json_file(THEMES_FILE, result)
-
-
-def infer_bureau(catalog):
-    publisher = normalize_bureau(
-        (catalog.get("publisher") or {}).get("name", "")
-    )
-    for bureau_name, info in BUREAUS.items():
-        if publisher == normalize_bureau(info["publisher"]):
-            return bureau_name
-
-    codes = catalog.get("bureauCode", [])
-    for bureau_name, info in BUREAUS.items():
-        if set(codes or []) & set(info.get("bureauCode", [])):
-            return bureau_name
-
-    return ""
-
-
-# ============================================================
-# EXCEL DATA DICTIONARY
-# ============================================================
-
-YES_NO = ["No", "Yes"]
-ACCESS_RIGHTS_OPTIONS = [
-    "These data are public",
-    "These data are restricted",
-    "These data are not public",
-]
-ACCESS_STATUS_OPTIONS = [
-    "Restricted - Fully",
-    "Restricted - Partly",
-    "Restricted - Possibly",
-    "Undetermined",
-    "Unrestricted",
-]
-SPECIFIC_ACCESS_OPTIONS = [
-    "FOIA (b)(1) National Security",
-    "FOIA (b)(2) Internal Personnel Rules and Practices",
-    "FOIA (b)(3) Statute",
-    "FOIA (b)(4) Trade Secrets and Commercial Information",
-    "FOIA (b)(5) Personal Information",
-    "FOIA (b)(6) Personal Information",
-    "FOIA (b)(7) Law Enforcement",
-    "FOIA (b)(8) Financial Institutions",
-    "FOIA (b)(9) Geological and Geophysical Information",
-    "Other",
-]
-CUI_OPTIONS = [
-    "CONTROLLED",
-    "SP-PROPIN",
-    "SP-CTI",
-    "SP-PRVCY",
-    "SP-PII",
-    "SP-HLTH",
-    "SP-FIN",
-]
-USE_TYPE_OPTIONS = ["Use restriction", "License", "Rights"]
-SPECIFIC_USE_OPTIONS = ["Copyright", "Donor Restrictions", "Public Law", "Other"]
-SPATIAL_GRANULARITY_OPTIONS = [
-    "Continent", "Country", "State", "County", "City",
-    "ZIP Code", "Census Tract", "Other",
-]
-
-
-QUESTION_DEFINITIONS = [
-    {
-        "column": "catalog_bureau",
-        "question": "Which bureau are you submitting metadata for?",
-        "expected": "Select one bureau from the list.",
-        "type": "Dropdown",
-        "options": list(BUREAUS.keys()),
-        "required": "Required",
-        "scope": "Catalog",
-    },
-    {
-        "column": "catalog_contact_name",
-        "question": "Who should be contacted with questions about this catalog? — Contact name",
-        "expected": "Example: Census Bureau Call Center",
-        "type": "Text",
-        "options": [],
-        "required": "Required",
-        "scope": "Catalog",
-    },
-    {
-        "column": "catalog_contact_email",
-        "question": "Who should be contacted with questions about this catalog? — Email",
-        "expected": "Example: help@example.gov",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Catalog",
-    },
-    {
-        "column": "catalog_contact_phone",
-        "question": "Who should be contacted with questions about this catalog? — Phone",
-        "expected": "Example: 202-555-0100",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Catalog",
-    },
-    {
-        "column": "catalog_contact_organization",
-        "question": "Who should be contacted with questions about this catalog? — Organization",
-        "expected": "Example: United States Census Bureau",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Catalog",
-    },
-    {
-        "column": "dataset_title",
-        "question": "What is the dataset called?",
-        "expected": "A clear, human-readable dataset title.",
-        "type": "Text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_description",
-        "question": "Dataset description in plain language.",
-        "expected": "A plain-language description of what the data contain.",
-        "type": "Long text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_identifier",
-        "question": "Dataset identifier",
-        "expected": "Automatically assigned from the bureau code, e.g. CEN-000001. Leave blank for new datasets.",
-        "type": "Auto",
-        "options": [],
-        "required": "Auto",
-        "scope": "Dataset",
-    },
-    {
-        "column": "publisher_office",
-        "question": "Which office publishes these data?",
-        "expected": "The office or organization that publishes the dataset.",
-        "type": "Text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_contact_name",
-        "question": "What is the best contact for questions about this dataset? — Contact name",
-        "expected": "Example: Current Population Survey Office",
-        "type": "Text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_contact_email",
-        "question": "What is the best contact for questions about this dataset? — Email",
-        "expected": "Example: dsd.cps@census.gov",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_contact_phone",
-        "question": "What is the best contact for questions about this dataset? — Phone",
-        "expected": "Example: 1-800-923-8282",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dataset_contact_organization",
-        "question": "What is the best contact for questions about this dataset? — Organization",
-        "expected": "The contact's organization.",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "keywords",
-        "question": "What words would someone use to search for these data?",
-        "expected": "Semicolon-separated keywords, e.g. trade; exports; employment.",
-        "type": "List",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "themes",
-        "question": "What theme does this dataset belong to?",
-        "expected": "Semicolon-separated theme names.",
-        "type": "List",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "theme_descriptions",
-        "question": "Description(s) for any new themes",
-        "expected": "Use the same order as themes. Required only when adding a theme not already in themes.json.",
-        "type": "List",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Helper",
-    },
-    {
-        "column": "access_rights",
-        "question": "Who is allowed to access these data?",
-        "expected": "Select one controlled value.",
-        "type": "Dropdown",
-        "options": ACCESS_RIGHTS_OPTIONS,
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "has_access_restriction",
-        "question": "Are there any restrictions on getting these data?",
-        "expected": "Yes or No.",
-        "type": "Dropdown",
-        "options": YES_NO,
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "access_restriction_status",
-        "question": "What is the data restriction status?",
-        "expected": "Select one status when has_access_restriction = Yes.",
-        "type": "Dropdown",
-        "options": ACCESS_STATUS_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "access_specific_restriction",
-        "question": "What is the specific access restriction?",
-        "expected": "Semicolon-separated values. When applicable, use the controlled values listed here.",
-        "type": "Multi-select list",
-        "options": SPECIFIC_ACCESS_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "access_restriction_note",
-        "question": "Additional information about the access restriction",
-        "expected": "Additional explanatory text.",
-        "type": "Long text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "has_cui",
-        "question": "Does the dataset contain Controlled Unclassified Information (CUI)?",
-        "expected": "Yes or No.",
-        "type": "Dropdown",
-        "options": YES_NO,
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "cui_banner",
-        "question": "Which CUI Banner Marking are these data associated with?",
-        "expected": "Select one marking when has_cui = Yes.",
-        "type": "Dropdown",
-        "options": CUI_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "cui_designation",
-        "question": "Which agency designated the information as CUI? Include contact information when possible.",
-        "expected": "Agency/designation information.",
-        "type": "Long text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "has_use_restriction",
-        "question": "Are there any other rules about how these data may be used, such as use restriction, license, or rights?",
-        "expected": "Yes or No.",
-        "type": "Dropdown",
-        "options": YES_NO,
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "restriction_types",
-        "question": "What type of rule applies?",
-        "expected": "Semicolon-separated values from the controlled list.",
-        "type": "Multi-select list",
-        "options": USE_TYPE_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "use_status",
-        "question": "Use restriction status",
-        "expected": "Select one status when Use restriction is included.",
-        "type": "Dropdown",
-        "options": ACCESS_STATUS_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "specific_use",
-        "question": "Specific use restriction",
-        "expected": "Semicolon-separated values.",
-        "type": "Multi-select list",
-        "options": SPECIFIC_USE_OPTIONS,
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "use_note",
-        "question": "Use restriction note",
-        "expected": "Additional explanatory text.",
-        "type": "Long text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "license",
-        "question": "What license applies to these data?",
-        "expected": "License name or URI.",
-        "type": "Text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "rights",
-        "question": "What other rights have not been covered?",
-        "expected": "Other rights information.",
-        "type": "Long text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "temporal_start",
-        "question": "Start date for the period covered by these data",
-        "expected": "YYYY, YYYY-MM, or YYYY-MM-DD.",
-        "type": "Date text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "temporal_end",
-        "question": "End date for the period covered by these data",
-        "expected": "YYYY, YYYY-MM, or YYYY-MM-DD.",
-        "type": "Date text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "spatial_granularity",
-        "question": "Spatial Granularity",
-        "expected": "The geographic level at which the dataset's data are provided.",
-        "type": "Dropdown",
-        "options": [""] + SPATIAL_GRANULARITY_OPTIONS,
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "spatial_granularity_other",
-        "question": "Specify other spatial granularity",
-        "expected": "Example: Watershed, School District, Parcel.",
-        "type": "Text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "spatial",
-        "question": "Where do these data cover?",
-        "expected": "Example: United States, Washington, DC, or worldwide.",
-        "type": "Text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "modified",
-        "question": "When were these data last changed?",
-        "expected": "YYYY, YYYY-MM, or YYYY-MM-DD.",
-        "type": "Date text",
-        "options": [],
-        "required": "Required",
-        "scope": "Dataset",
-    },
-    {
-        "column": "has_dictionary",
-        "question": "Does this dataset have a data dictionary?",
-        "expected": "Yes or No.",
-        "type": "Dropdown",
-        "options": YES_NO,
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dictionary_url",
-        "question": "Data dictionary URL",
-        "expected": "A URL to the data dictionary.",
-        "type": "Text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "dictionary_format",
-        "question": "Data dictionary format",
-        "expected": "Example: HTML, PDF, CSV, XLSX.",
-        "type": "Text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "has_landing_page",
-        "question": "Is there a webpage/landing page to get the data from?",
-        "expected": "Yes or No.",
-        "type": "Dropdown",
-        "options": YES_NO,
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "landing_page",
-        "question": "Landing page URL",
-        "expected": "A URL to the dataset landing page.",
-        "type": "Text",
-        "options": [],
-        "required": "Conditional",
-        "scope": "Dataset",
-    },
-    {
-        "column": "contract_number",
-        "question": "Contract number by which these data were acquired",
-        "expected": "Up to 40 characters.",
-        "type": "Text",
-        "options": [],
-        "required": "Optional",
-        "scope": "Dataset",
-    },
-]
-
-
-# ============================================================
-# EXCEL CREATION
-# ============================================================
-
-def style_sheet(ws, widths):
-    header_fill = PatternFill("solid", fgColor="005EA8")
-    header_font = Font(color="FFFFFF", bold=True)
-    thin = Side(style="thin", color="D9E2EA")
-
-    for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(
-            horizontal="center",
-            vertical="center",
-            wrap_text=True,
-        )
-        cell.border = Border(bottom=thin)
-
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
-    ws.row_dimensions[1].height = 42
-
-    for col_idx, width in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(col_idx)].width = width
-
-
-def add_dropdown(ws, column_idx, options, max_row=1000):
-    if not options:
-        return
-    # Put options on hidden Lists sheet and reference a named range-like range.
-    lists_ws = ws.parent["Lists"]
-    start_col = lists_ws.max_column + 1
-    col_letter = get_column_letter(start_col)
-    for row_idx, option in enumerate(options, start=1):
-        lists_ws.cell(row=row_idx, column=start_col, value=option)
-    range_name = f"ExcelOptions_{ws.title.replace(' ', '_')}_{start_col}"
-    defined = DefinedName(
-        range_name,
-        attr_text=f"'Lists'!${col_letter}$1:${col_letter}${len(options)}",
-    )
-    try:
-        ws.parent.defined_names.add(defined)
-    except AttributeError:
-        ws.parent.defined_names.append(defined)
-
-    dv = DataValidation(
-        type="list",
-        formula1=f"={range_name}",
-        allow_blank=True,
-    )
-    dv.error = "Please choose a value from the dropdown."
-    dv.errorTitle = "Invalid value"
-    ws.add_data_validation(dv)
-    dv.add(f"{get_column_letter(column_idx)}2:{get_column_letter(column_idx)}{max_row}")
-
-
-def catalog_to_excel_rows(catalog):
-    datasets = catalog.get("dataset", []) or []
-    bureau = infer_bureau(catalog)
-    catalog_contact = contact_from_dataset(
-        {"contactPoint": catalog.get("contactPoint", [])}
-    )
-
-    rows = []
-    for ds in datasets:
-        ds_contact = contact_from_dataset(ds)
-        themes = ds.get("theme", []) or []
-        theme_names = []
-        for theme in themes:
-            if isinstance(theme, dict):
-                theme_names.append(
-                    theme.get("prefLabel")
-                    or theme.get("name")
-                    or ""
-                )
-            else:
-                theme_names.append(str(theme))
-
-        temporal = first_value(ds.get("temporal", []))
-        spatial = first_value(ds.get("spatial", []))
-        if isinstance(spatial, dict):
-            spatial_value = spatial.get("name") or spatial.get("prefLabel") or ""
-        else:
-            spatial_value = spatial
-
-        access = first_value(ds.get("accessRestriction", [])) or {}
-        use = first_value(ds.get("useRestriction", [])) or {}
-        dictionary = ds.get("describedBy") or {}
-        landing = ds.get("landingPage") or {}
-
-        row = {
-            "catalog_bureau": bureau,
-            "catalog_contact_name": catalog_contact.get("name", ""),
-            "catalog_contact_email": catalog_contact.get("email", ""),
-            "catalog_contact_phone": catalog_contact.get("phone", ""),
-            "catalog_contact_organization": catalog_contact.get("organization", ""),
-            "dataset_title": ds.get("title", ""),
-            "dataset_description": ds.get("description", ""),
-            "dataset_identifier": ds.get("identifier", ""),
-            "publisher_office": (ds.get("publisher") or {}).get("name", ""),
-            "dataset_contact_name": ds_contact.get("name", ""),
-            "dataset_contact_email": ds_contact.get("email", ""),
-            "dataset_contact_phone": ds_contact.get("phone", ""),
-            "dataset_contact_organization": ds_contact.get("organization", ""),
-            "keywords": "; ".join(str(x) for x in ds.get("keyword", []) or []),
-            "themes": "; ".join(theme_names),
-            "theme_descriptions": "",
-            "access_rights": ds.get("accessRights", ""),
-            "has_access_restriction": "Yes" if access else "No",
-            "access_restriction_status": access.get("restrictionStatus", ""),
-            "access_specific_restriction": "; ".join(split_cell(access.get("specificRestriction", ""))),
-            "access_restriction_note": access.get("restrictionNote", ""),
-            "has_cui": "Yes" if ds.get("CUIRestriction") else "No",
-            "cui_banner": (ds.get("CUIRestriction") or {}).get("cuiBannerMarking", ""),
-            "cui_designation": (ds.get("CUIRestriction") or {}).get("designationIndicator", ""),
-            "has_use_restriction": "Yes" if use or ds.get("license") or ds.get("rights") else "No",
-            "restriction_types": "; ".join(
-                x for x in [
-                    "Use restriction" if use else "",
-                    "License" if ds.get("license") else "",
-                    "Rights" if ds.get("rights") else "",
-                ] if x
-            ),
-            "use_status": use.get("restrictionStatus", ""),
-            "specific_use": "; ".join(split_cell(use.get("specificRestriction", ""))),
-            "use_note": use.get("restrictionNote", ""),
-            "license": ds.get("license", ""),
-            "rights": "; ".join(split_cell(ds.get("rights", ""))),
-            "temporal_start": (temporal or {}).get("startDate", ""),
-            "temporal_end": (temporal or {}).get("endDate", ""),
-            "spatial_granularity": ds.get("spatialGranularity", ""),
-            "spatial_granularity_other": "",
-            "spatial": spatial_value,
-            "modified": ds.get("modified", ""),
-            "has_dictionary": "Yes" if dictionary else "No",
-            "dictionary_url": dictionary.get("accessURL", "") if isinstance(dictionary, dict) else "",
-            "dictionary_format": dictionary.get("format", "") if isinstance(dictionary, dict) else "",
-            "has_landing_page": "Yes" if landing else "No",
-            "landing_page": landing.get("accessURL", "") if isinstance(landing, dict) else "",
-            "contract_number": ds.get("contractNumber", ""),
-        }
-        rows.append(row)
-
-    # A catalog with no datasets still gets one blank row so the user can start.
-    if not rows:
-        rows.append({
-            q["column"]: "" for q in QUESTION_DEFINITIONS
-        })
-        rows[0]["catalog_bureau"] = bureau
-
-    return rows
-
-
-def build_excel_workbook(catalog=None):
-    wb = Workbook()
-    data_ws = wb.active
-    data_ws.title = "Data Entry"
-    dict_ws = wb.create_sheet("Data Dictionary")
-    instructions_ws = wb.create_sheet("Instructions")
-    lists_ws = wb.create_sheet("Lists")
-
-    columns = [q["column"] for q in QUESTION_DEFINITIONS]
-
-    # Data entry
-    data_ws.append(columns)
-    rows = catalog_to_excel_rows(catalog or {})
-    for row in rows:
-        data_ws.append([row.get(col, "") for col in columns])
-
-    style_sheet(
-        data_ws,
-        [22 if i == 1 else 18 for i in range(len(columns))]
-    )
-
-    # Dropdowns
-    for idx, q in enumerate(QUESTION_DEFINITIONS, start=1):
-        if q["type"] == "Dropdown" and q["options"]:
-            add_dropdown(data_ws, idx, q["options"])
-
-    # Dictionary
-    dict_ws.append([
-        "Column name",
-        "Full question / field",
-        "Expected / example response",
-        "Input type",
-        "Dropdown / allowed options",
-        "Required?",
-        "Scope",
-    ])
-    for q in QUESTION_DEFINITIONS:
-        dict_ws.append([
-            q["column"],
-            q["question"],
-            q["expected"],
-            q["type"],
-            "; ".join(q["options"]),
-            q["required"],
-            q["scope"],
-        ])
-    style_sheet(dict_ws, [28, 58, 60, 20, 65, 18, 15])
-
-    # Instructions
-    instructions = [
-        ["DCAT-US 3.0 Excel Mode"],
-        ["How to use this workbook"],
-        ["1. Fill out one row per dataset on the Data Entry sheet."],
-        ["2. Do not rename columns."],
-        ["3. Use semicolons (;) to separate multiple keywords, themes, restrictions, or rule types."],
-        ["4. Dropdown columns contain controlled values. The complete options are also listed in Data Dictionary."],
-        ["5. dataset_identifier is automatically assigned for new datasets. Leave it blank for new datasets."],
-        ["6. If you enter a new theme, also enter its description in theme_descriptions using the same order."],
-        ["7. Contact information is stored back into contacts.json when it is not already present."],
-        ["8. New keywords are added to tags.json."],
-        ["9. New themes are added to themes.json."],
-        ["10. Conditional questions only need values when their parent Yes/No or type selection makes them applicable."],
-        ["11. After filling this workbook, upload it back into the app to create the DCAT-US JSON."],
-        ["12. The app will validate required fields and date formats before creating JSON."],
-    ]
-    for row in instructions:
-        instructions_ws.append(row)
-    instructions_ws.column_dimensions["A"].width = 110
-    instructions_ws["A1"].font = Font(size=18, bold=True, color="005EA8")
-    instructions_ws["A2"].font = Font(size=13, bold=True)
-    for row in instructions_ws.iter_rows():
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
-    instructions_ws.freeze_panes = "A3"
-
-    # Hidden list sheet
-    lists_ws.sheet_state = "hidden"
-
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return output.getvalue()
-
-
-# ============================================================
-# EXCEL IMPORT / VALIDATION
-# ============================================================
-
-def read_excel_rows(uploaded_file):
-    wb = load_workbook(uploaded_file, data_only=True)
-    if "Data Entry" not in wb.sheetnames:
-        raise ValueError('The workbook must contain a sheet named "Data Entry".')
-
-    ws = wb["Data Entry"]
-    headers = [cell.value for cell in ws[1]]
-    expected = [q["column"] for q in QUESTION_DEFINITIONS]
-
-    if headers != expected:
-        missing = [x for x in expected if x not in headers]
-        extra = [x for x in headers if x not in expected]
-        problems = []
-        if missing:
-            problems.append("Missing columns: " + ", ".join(missing))
-        if extra:
-            problems.append("Unexpected columns: " + ", ".join(extra))
-        raise ValueError(
-            "The Data Entry sheet does not match the template. "
-            + " ".join(problems)
-        )
-
-    rows = []
-    for values in ws.iter_rows(min_row=2, values_only=True):
-        row = dict(zip(headers, values))
-        if any(v not in (None, "") for v in row.values()):
-            rows.append({k: "" if v is None else str(v).strip() for k, v in row.items()})
-
-    return rows
-
-
-def validate_excel_rows(rows):
-    errors = []
-
-    for row_num, row in enumerate(rows, start=2):
-        required = [
-            ("catalog_bureau", "Bureau"),
-            ("catalog_contact_name", "Catalog contact name"),
-            ("dataset_title", "Dataset title"),
-            ("dataset_description", "Dataset description"),
-            ("publisher_office", "Publishing office"),
-            ("dataset_contact_name", "Dataset contact name"),
-            ("keywords", "Keywords"),
-            ("themes", "Themes"),
-            ("access_rights", "Access rights"),
-            ("has_access_restriction", "Access restriction Yes/No"),
-            ("has_cui", "CUI Yes/No"),
-            ("has_use_restriction", "Use restriction Yes/No"),
-            ("temporal_start", "Temporal start"),
-            ("temporal_end", "Temporal end"),
-            ("spatial", "Geographic coverage"),
-            ("modified", "Modified date"),
-        ]
-        for key, label in required:
-            if not normalize_text(row.get(key)):
-                errors.append(f"Row {row_num}: {label} is required.")
-
-        bureau = row.get("catalog_bureau", "")
-        if bureau and bureau not in BUREAUS:
-            errors.append(f"Row {row_num}: '{bureau}' is not a recognized bureau.")
-
-        for key, label in [
-            ("temporal_start", "Temporal start"),
-            ("temporal_end", "Temporal end"),
-            ("modified", "Modified date"),
-        ]:
-            if row.get(key) and not is_valid_dcat_date(row[key]):
-                errors.append(
-                    f"Row {row_num}: {label} must be YYYY, YYYY-MM, or YYYY-MM-DD."
-                )
-
-        if row.get("has_access_restriction") == "Yes":
-            if not row.get("access_restriction_status"):
-                errors.append(f"Row {row_num}: access restriction status is required.")
-            if not split_cell(row.get("access_specific_restriction")):
-                errors.append(f"Row {row_num}: specific access restriction is required.")
-
-        if row.get("has_cui") == "Yes":
-            if not row.get("cui_banner"):
-                errors.append(f"Row {row_num}: CUI banner marking is required.")
-            if not row.get("cui_designation"):
-                errors.append(f"Row {row_num}: CUI designation is required.")
-
-        if row.get("has_use_restriction") == "Yes":
-            types = split_cell(row.get("restriction_types"))
-            if not types:
-                errors.append(f"Row {row_num}: restriction type is required.")
-            if "Use restriction" in types:
-                if not row.get("use_status"):
-                    errors.append(f"Row {row_num}: use restriction status is required.")
-                if not split_cell(row.get("specific_use")):
-                    errors.append(f"Row {row_num}: specific use restriction is required.")
-            if "License" in types and not row.get("license"):
-                errors.append(f"Row {row_num}: license is required.")
-            if "Rights" in types and not row.get("rights"):
-                errors.append(f"Row {row_num}: rights is required.")
-
-        if row.get("spatial_granularity") == "Other" and not row.get("spatial_granularity_other"):
-            errors.append(f"Row {row_num}: specify the other spatial granularity.")
-
-        if row.get("has_dictionary") == "Yes":
-            if not row.get("dictionary_url"):
-                errors.append(f"Row {row_num}: data dictionary URL is required.")
-            if not row.get("dictionary_format"):
-                errors.append(f"Row {row_num}: data dictionary format is required.")
-
-        if row.get("has_landing_page") == "Yes" and not row.get("landing_page"):
-            errors.append(f"Row {row_num}: landing page URL is required.")
-
-    return errors
-
-
-def build_catalog_from_excel(rows):
-    if not rows:
-        raise ValueError("The workbook contains no data rows.")
-
-    # Catalog fields are taken from the first row; users normally repeat them
-    # because the workbook is intentionally flat.
-    first = rows[0]
-    bureau_name = first["catalog_bureau"]
-    bureau_info = BUREAUS[bureau_name]
-
-    catalog_contact = {
-        "name": first["catalog_contact_name"],
-        "email": first["catalog_contact_email"],
-        "phone": first["catalog_contact_phone"],
-        "organization": first["catalog_contact_organization"],
-    }
-    ensure_contact_in_database(catalog_contact, bureau_name)
-
-    datasets = []
-
-    # Continue identifiers after the largest existing numeric identifier.
-    used_numbers = []
-    for row in rows:
-        identifier = row.get("dataset_identifier", "")
-        m = re.search(r"-(\d{6})$", identifier)
-        if m:
-            used_numbers.append(int(m.group(1)))
-    next_number = max(used_numbers, default=0) + 1
-
-    for row in rows:
-        identifier = row.get("dataset_identifier", "")
-        m = re.search(r"-(\d{6})$", identifier)
-        if m:
-            dataset_number = int(m.group(1))
-        else:
-            dataset_number = next_number
-            next_number += 1
-
-        keywords = split_cell(row["keywords"])
-        themes = split_cell(row["themes"])
-        theme_descriptions = split_cell(row.get("theme_descriptions", ""))
-
-        ensure_tags_in_database(keywords)
-        ensure_themes_in_database(themes, theme_descriptions)
-
-        dataset_contact = {
-            "name": row["dataset_contact_name"],
-            "email": row["dataset_contact_email"],
-            "phone": row["dataset_contact_phone"],
-            "organization": row["dataset_contact_organization"] or row["publisher_office"],
-        }
-        ensure_contact_in_database(dataset_contact, bureau_name)
-
-        access_restriction = None
-        if row["has_access_restriction"] == "Yes":
-            access_restriction = {
-                "restrictionStatus": row["access_restriction_status"],
-                "specificRestriction": split_cell(row["access_specific_restriction"]),
-                "restrictionNote": row.get("access_restriction_note", ""),
-            }
-
-        cui_restriction = None
-        if row["has_cui"] == "Yes":
-            cui_restriction = {
-                "cuiBannerMarking": row["cui_banner"],
-                "designationIndicator": row["cui_designation"],
-            }
-
-        use_restriction = None
-        types = split_cell(row.get("restriction_types", ""))
-        if "Use restriction" in types:
-            use_restriction = {
-                "restrictionStatus": row["use_status"],
-                "specificRestriction": split_cell(row["specific_use"]),
-                "restrictionNote": row.get("use_note", ""),
-            }
-
-        data_dictionary = None
-        if row.get("has_dictionary") == "Yes":
-            data_dictionary = {
-                "url": row["dictionary_url"],
-                "format": row["dictionary_format"],
-            }
-
-        spatial_granularity = row.get("spatial_granularity", "")
-        if spatial_granularity == "Other":
-            spatial_granularity = row.get("spatial_granularity_other", "")
-
-        dataset = build_dataset(
-            bureau_info=bureau_info,
-            dataset_number=dataset_number,
-            title=row["dataset_title"],
-            description=row["dataset_description"],
-            office=row["publisher_office"],
-            contact_name=dataset_contact["name"],
-            contact_email=dataset_contact["email"],
-            contact_phone=dataset_contact["phone"],
-            contact_organization=dataset_contact["organization"],
-            keywords=keywords,
-            themes=themes,
-            access_rights=row["access_rights"],
-            access_restriction=access_restriction,
-            cui_restriction=cui_restriction,
-            use_restriction=use_restriction,
-            license=row.get("license", ""),
-            rights=split_cell(row.get("rights", "")),
-            temporal_start=row["temporal_start"],
-            temporal_end=row["temporal_end"],
-            spatial=row["spatial"],
-            modified=row["modified"],
-            data_dictionary=data_dictionary,
-            landing_page=row.get("landing_page", "") if row.get("has_landing_page") == "Yes" else "",
-            spatial_granularity=spatial_granularity,
-            contract_number=row.get("contract_number", ""),
-            existing_identifier=identifier or None,
-        )
-        datasets.append(dataset)
-
-    return build_catalog(
-        bureau_info=bureau_info,
-        catalog_contact_name=catalog_contact["name"],
-        catalog_contact_email=catalog_contact["email"],
-        catalog_contact_phone=catalog_contact["phone"],
-        catalog_contact_organization=catalog_contact["organization"],
-        datasets=datasets,
-    )
 
 
 # ============================================================
 # SESSION STATE
 # ============================================================
 
-defaults = {
-    "datasets": [],
-    "current_dataset": 1,
-    "mode": None,
-    "catalog_loaded": False,
-    "uploaded_catalog": None,
-}
-for key, value in defaults.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
+if "datasets" not in st.session_state:
+    st.session_state.datasets = []
+
+if "current_dataset" not in st.session_state:
+    st.session_state.current_dataset = 1
+
+if "bureau" not in st.session_state:
+    st.session_state.bureau = None
 
 
 # ============================================================
 # HEADER
 # ============================================================
 
-st.title("DCAT-US 3.0 Metadata Builder")
+st.title(
+    "DCAT-US 3.0 Metadata Builder"
+)
+
 st.write(
-    "Build DCAT-US 3.0 metadata either with the guided form or by "
-    "downloading and completing an Excel workbook."
+    "Build a DCAT-US 3.0 catalog by answering "
+    "questions about each dataset."
 )
 
 
 # ============================================================
-# STEP 1 — EXISTING JSON
+# START A CATALOG
 # ============================================================
 
-st.markdown("## 1. Start with an existing catalog")
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Start a Catalog</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
 
-existing_choice = st.radio(
+existing_catalog_choice = st.radio(
     "Do you have an existing catalog JSON file?",
-    ["No, start a new catalog", "Yes, upload an existing catalog"],
-    horizontal=True,
-    key="existing_choice",
-)
-
-if existing_choice.startswith("Yes"):
-    uploaded_json = st.file_uploader(
-        "Upload your existing catalog JSON",
-        type=["json"],
-        key="existing_json_upload",
-    )
-
-    if uploaded_json:
-        try:
-            catalog = json.load(uploaded_json)
-            st.session_state.uploaded_catalog = catalog
-            st.session_state.catalog_loaded = True
-            st.session_state.datasets = catalog.get("dataset", []) or []
-            st.session_state.current_dataset = len(st.session_state.datasets) + 1
-            st.success(
-                f"Loaded {len(st.session_state.datasets)} existing dataset(s)."
-            )
-        except Exception as exc:
-            st.error(f"The uploaded file could not be read as JSON: {exc}")
-
-
-# ============================================================
-# STEP 2 — MODE
-# ============================================================
-
-st.markdown("## 2. Choose how you want to enter metadata")
-
-mode = st.radio(
-    "Do you want to use Excel mode?",
     [
-        "No, guide me through the questions in this web app",
-        "Yes, use Excel mode",
+        "No — start a new catalog",
+        "Yes — upload an existing catalog"
     ],
     horizontal=True,
-    key="entry_mode",
+    key="existing_catalog_choice"
 )
 
-if mode.startswith("Yes"):
-    st.session_state.mode = "excel"
-    st.markdown("### Excel mode")
+if "uploaded_catalog" not in st.session_state:
+    st.session_state.uploaded_catalog = None
 
-    st.write(
-        "Download the workbook, fill out one row per dataset, and upload it "
-        "back here. The workbook contains a Data Entry sheet and a Data "
-        "Dictionary with the full question, examples, input type, options, "
-        "and required/optional status."
+
+if existing_catalog_choice.startswith("Yes"):
+
+    uploaded_file = st.file_uploader(
+        "Upload your existing catalog JSON",
+        type=["json"],
+        key="catalog_upload"
     )
 
-    if st.session_state.uploaded_catalog:
-        excel_seed = st.session_state.uploaded_catalog
-    else:
-        excel_seed = {}
+    if uploaded_file:
 
-    workbook_bytes = build_excel_workbook(excel_seed)
-
-    st.download_button(
-        "⬇ Download Excel Template",
-        data=workbook_bytes,
-        file_name="dcat_us_3_metadata_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_excel_template",
-    )
-
-    st.markdown("---")
-    completed_excel = st.file_uploader(
-        "Upload your completed Excel workbook",
-        type=["xlsx"],
-        key="completed_excel",
-    )
-
-    if completed_excel:
         try:
-            excel_rows = read_excel_rows(completed_excel)
-            errors = validate_excel_rows(excel_rows)
 
-            if errors:
-                st.error("Please fix these issues in the workbook before importing:")
-                for error in errors:
-                    st.write(f"• {error}")
-            else:
-                if st.button("Convert Excel to DCAT-US JSON", type="primary"):
-                    catalog = build_catalog_from_excel(excel_rows)
-                    st.session_state.excel_catalog_result = catalog
-                    st.session_state.excel_rows = excel_rows
-                    st.success("Excel successfully converted to DCAT-US 3.0 JSON.")
+            uploaded_catalog = json.load(
+                uploaded_file
+            )
 
-        except Exception as exc:
-            st.error(f"Could not read the Excel workbook: {exc}")
+            st.session_state.uploaded_catalog = (
+                uploaded_catalog
+            )
 
-    if "excel_catalog_result" in st.session_state:
-        catalog = st.session_state.excel_catalog_result
+            existing_datasets = (
+                uploaded_catalog.get(
+                    "dataset",
+                    []
+                )
+            )
 
-        st.markdown("### JSON output")
+            st.session_state.datasets = (
+                existing_datasets
+            )
 
-        st.download_button(
-            "⬇ Download Catalog JSON",
-            data=json.dumps(catalog, indent=2, ensure_ascii=False),
-            file_name="data.json",
-            mime="application/json",
-            key="download_excel_json",
-        )
+            st.session_state.current_dataset = (
+                len(existing_datasets) + 1
+            )
 
-        st.json(catalog)
+            st.success(
+                f"✓ Loaded {len(existing_datasets)} "
+                "existing dataset(s)."
+            )
+
+        except Exception as error:
+
+            st.error(
+                "The uploaded file could not be "
+                f"read as JSON: {error}"
+            )
+
+
+# ============================================================
+# BUILD MODE
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Choose How to Build Your Catalog</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+mode = st.radio(
+    "How would you like to build the catalog?",
+    [
+        "Guided Mode",
+        "Excel Mode"
+    ],
+    horizontal=True,
+    key="build_mode"
+)
+
+
+# ============================================================
+# EXCEL MODE
+# ============================================================
+
+if mode == "Excel Mode":
+
+    st.markdown(
+        '<div class="section-header">'
+        '<h2>Excel Mode</h2>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 
     st.info(
-        "Excel mode intentionally skips the Additional DCAT-US Properties "
-        "question for this phase."
+        "Excel Mode lets you download a fillable workbook, "
+        "complete one row per dataset, and upload the workbook "
+        "to generate DCAT-US JSON. Additional DCAT-US Properties "
+        "are intentionally excluded from Excel Mode for now; "
+        "they remain fully available in Guided Mode."
     )
+
+    bureau_names = list(BUREAUS.keys())
+
+    existing_catalog = (
+        st.session_state.uploaded_catalog
+    )
+
+    inferred_bureau = None
+
+    if existing_catalog:
+
+        publisher_name = (
+            (existing_catalog.get("publisher") or {})
+            .get("name", "")
+        )
+
+        inferred_bureau = next(
+            (
+                bureau_name
+                for bureau_name, bureau_info in BUREAUS.items()
+                if bureau_info["publisher"].lower()
+                == publisher_name.lower()
+            ),
+            None
+        )
+
+    selected_excel_bureau = st.selectbox(
+        "Which bureau is this catalog for? **(Required)**",
+        bureau_names,
+        index=(
+            bureau_names.index(inferred_bureau)
+            if inferred_bureau in bureau_names
+            else 0
+        ),
+        key="excel_bureau"
+    )
+
+    contacts = load_json_file(
+        CONTACTS_FILE,
+        []
+    )
+
+    contacts_by_bureau = {
+        bureau_name: get_contacts_for_bureau(
+            contacts,
+            bureau_name
+        )
+        for bureau_name in bureau_names
+    }
+
+    offices_by_bureau = {
+        bureau_name: sorted(
+            set(
+                contact.get("organization")
+                for contact in contacts_by_bureau[bureau_name]
+                if contact.get("organization")
+            )
+        )
+        for bureau_name in bureau_names
+    }
+
+    tags = load_json_file(
+        TAGS_FILE,
+        []
+    )
+
+    themes = load_json_file(
+        THEMES_FILE,
+        []
+    )
+
+    if st.button(
+        "Prepare Excel Template",
+        key="prepare_excel_template"
+    ):
+
+        st.session_state.excel_bytes = create_template(
+            bureaus=bureau_names,
+            contacts_by_bureau=contacts_by_bureau,
+            offices_by_bureau=offices_by_bureau,
+            tags=tags,
+            themes=themes,
+            existing_catalog=existing_catalog,
+            default_bureau=selected_excel_bureau
+        )
+
+    if "excel_bytes" in st.session_state:
+
+        st.download_button(
+            "Download Excel Template",
+            data=st.session_state.excel_bytes,
+            file_name="dcat-us-3-metadata-template.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            key="download_excel_template"
+        )
+
+    st.markdown(
+        "### Upload completed workbook"
+    )
+
+    excel_upload = st.file_uploader(
+        "Upload the completed Excel workbook",
+        type=["xlsx"],
+        key="excel_upload"
+    )
+
+    if excel_upload:
+
+        try:
+
+            from openpyxl import load_workbook
+
+            workbook = load_workbook(
+                excel_upload,
+                data_only=True
+            )
+
+            rows = read_rows(workbook)
+            new_contacts = read_new_contacts(workbook)
+
+            # Save any contacts entered on the New Contacts sheet.
+            for contact in new_contacts:
+
+                save_contact(
+                    contact["bureau"],
+                    contact["name"],
+                    contact["email"],
+                    contact["phone"],
+                    contact["organization"]
+                )
+
+            # Save new keywords and themes to the shared databases.
+            theme_descriptions = {}
+
+            for row in rows:
+
+                theme_descriptions.update(
+                    parse_theme_descriptions(
+                        row.get("theme_descriptions")
+                    )
+                )
+
+                for keyword in split_values(
+                    row.get("keywords")
+                ):
+                    normalized_keyword = normalize_tag(
+                        keyword
+                    )
+
+                    if normalized_keyword:
+                        save_json_file(
+                            TAGS_FILE,
+                            sorted(
+                                set(
+                                    normalize_tag(item)
+                                    for item in load_json_file(
+                                        TAGS_FILE,
+                                        []
+                                    )
+                                    if normalize_tag(item)
+                                )
+                                | {normalized_keyword}
+                            )
+                        )
+
+            current_themes = load_json_file(
+                THEMES_FILE,
+                []
+            )
+
+            existing_theme_names = {
+                normalize_theme_name(
+                    theme.get("name", "")
+                )
+                for theme in current_themes
+            }
+
+            for row in rows:
+
+                for theme_name in split_values(
+                    row.get("themes")
+                ):
+
+                    normalized_theme = normalize_theme_name(
+                        theme_name
+                    )
+
+                    if (
+                        normalized_theme
+                        and normalized_theme not in existing_theme_names
+                        and normalized_theme in theme_descriptions
+                    ):
+
+                        current_themes.append(
+                            {
+                                "name": normalized_theme,
+                                "description": (
+                                    theme_descriptions[
+                                        normalized_theme
+                                    ]
+                                )
+                            }
+                        )
+
+                        existing_theme_names.add(
+                            normalized_theme
+                        )
+
+            current_themes.sort(
+                key=lambda item: normalize_theme_name(
+                    item.get("name", "")
+                )
+            )
+
+            save_json_file(
+                THEMES_FILE,
+                current_themes
+            )
+
+            contacts = load_json_file(
+                CONTACTS_FILE,
+                []
+            )
+
+            bureau_contacts = get_contacts_for_bureau(
+                contacts,
+                selected_excel_bureau
+            )
+
+            bureau_info = BUREAUS[
+                selected_excel_bureau
+            ]
+
+            imported_datasets = []
+            errors = []
+            start_number = (
+                len(st.session_state.datasets) + 1
+            )
+
+            def excel_value(row, key):
+                value = row.get(key, "")
+                return "" if value is None else str(value).strip()
+
+            def find_contact(value):
+                target = normalize_text(value)
+
+                for contact in bureau_contacts:
+
+                    if (
+                        normalize_text(contact_display(contact))
+                        == target
+                        or normalize_text(contact.get("name"))
+                        == target
+                    ):
+                        return contact
+
+                return None
+
+            catalog_contact = None
+
+            for row_number, row in enumerate(
+                rows,
+                start=start_number
+            ):
+
+                dataset_contact = find_contact(
+                    excel_value(
+                        row,
+                        "dataset_contact"
+                    )
+                )
+
+                row_catalog_contact = find_contact(
+                    excel_value(
+                        row,
+                        "catalog_contact"
+                    )
+                )
+
+                if row_catalog_contact and not catalog_contact:
+                    catalog_contact = row_catalog_contact
+
+                required_fields = {
+                    "Dataset title": excel_value(
+                        row,
+                        "dataset_title"
+                    ),
+                    "Dataset description": excel_value(
+                        row,
+                        "dataset_description"
+                    ),
+                    "Publishing office": excel_value(
+                        row,
+                        "publishing_office"
+                    ),
+                    "Dataset contact": dataset_contact,
+                    "Keywords": split_values(
+                        row.get("keywords")
+                    ),
+                    "Themes": split_values(
+                        row.get("themes")
+                    ),
+                    "Temporal start": excel_value(
+                        row,
+                        "temporal_start"
+                    ),
+                    "Temporal end": excel_value(
+                        row,
+                        "temporal_end"
+                    ),
+                    "Geographic coverage": excel_value(
+                        row,
+                        "geographic_coverage"
+                    ),
+                    "Modified date": excel_value(
+                        row,
+                        "modified"
+                    )
+                }
+
+                missing = [
+                    field
+                    for field, value in required_fields.items()
+                    if not value
+                ]
+
+                invalid_dates = [
+                    field
+                    for field in (
+                        "Temporal start",
+                        "Temporal end",
+                        "Modified date"
+                    )
+                    if not is_valid_dcat_date(
+                        required_fields[field]
+                    )
+                ]
+
+                if missing:
+                    errors.append(
+                        f"Row {row_number}: missing "
+                        + ", ".join(missing)
+                    )
+
+                if invalid_dates:
+                    errors.append(
+                        f"Row {row_number}: invalid date(s): "
+                        + ", ".join(invalid_dates)
+                    )
+
+                if not dataset_contact:
+                    errors.append(
+                        f"Row {row_number}: dataset contact "
+                        "must match a contact in contacts.json "
+                        "for the selected bureau."
+                    )
+
+                if missing or invalid_dates or not dataset_contact:
+                    continue
+
+                access_restriction = None
+
+                if excel_value(
+                    row,
+                    "access_restriction"
+                ) == "Yes":
+
+                    access_restriction = {
+                        "restrictionStatus": excel_value(
+                            row,
+                            "access_status"
+                        ),
+                        "specificRestriction": split_values(
+                            row.get(
+                                "specific_access_restrictions"
+                            )
+                        ),
+                        "restrictionNote": excel_value(
+                            row,
+                            "access_restriction_note"
+                        )
+                    }
+
+                cui_restriction = None
+
+                if excel_value(row, "cui") == "Yes":
+
+                    cui_restriction = {
+                        "cuiBannerMarking": excel_value(
+                            row,
+                            "cui_banner"
+                        ),
+                        "designationIndicator": excel_value(
+                            row,
+                            "cui_designation"
+                        )
+                    }
+
+                use_restriction = None
+                license_value = excel_value(
+                    row,
+                    "license"
+                )
+                rights_value = excel_value(
+                    row,
+                    "rights"
+                )
+
+                if excel_value(
+                    row,
+                    "use_restriction"
+                ) == "Yes":
+
+                    use_restriction = {
+                        "restrictionStatus": excel_value(
+                            row,
+                            "use_status"
+                        ),
+                        "specificRestriction": split_values(
+                            row.get(
+                                "specific_use_restrictions"
+                            )
+                        ),
+                        "restrictionNote": excel_value(
+                            row,
+                            "use_restriction_note"
+                        )
+                    }
+
+                data_dictionary = None
+
+                if excel_value(
+                    row,
+                    "has_dictionary"
+                ) == "Yes":
+
+                    data_dictionary = {
+                        "url": excel_value(
+                            row,
+                            "dictionary_url"
+                        ),
+                        "format": excel_value(
+                            row,
+                            "dictionary_format"
+                        )
+                    }
+
+                dataset_number = row_number
+
+                identifier = excel_value(
+                    row,
+                    "identifier"
+                ) or (
+                    f"{bureau_info['identifier_code']}-"
+                    f"{dataset_number:06d}"
+                )
+
+                dataset = build_dataset(
+                    bureau_info=bureau_info,
+                    dataset_number=dataset_number,
+                    title=excel_value(row, "dataset_title"),
+                    description=excel_value(
+                        row,
+                        "dataset_description"
+                    ),
+                    office=excel_value(
+                        row,
+                        "publishing_office"
+                    ),
+                    contact_name=dataset_contact.get(
+                        "name",
+                        ""
+                    ),
+                    contact_email=dataset_contact.get(
+                        "email",
+                        ""
+                    ),
+                    contact_phone=dataset_contact.get(
+                        "phone",
+                        ""
+                    ),
+                    contact_organization=dataset_contact.get(
+                        "organization",
+                        ""
+                    ),
+                    keywords=split_values(
+                        row.get("keywords")
+                    ),
+                    themes=split_values(
+                        row.get("themes")
+                    ),
+                    access_rights=excel_value(
+                        row,
+                        "access_rights"
+                    ),
+                    access_restriction=access_restriction,
+                    cui_restriction=cui_restriction,
+                    use_restriction=use_restriction,
+                    license=license_value,
+                    rights=rights_value,
+                    temporal_start=excel_value(
+                        row,
+                        "temporal_start"
+                    ),
+                    temporal_end=excel_value(
+                        row,
+                        "temporal_end"
+                    ),
+                    spatial=excel_value(
+                        row,
+                        "geographic_coverage"
+                    ),
+                    modified=excel_value(
+                        row,
+                        "modified"
+                    ),
+                    data_dictionary=data_dictionary,
+                    landing_page=(
+                        excel_value(
+                            row,
+                            "landing_page"
+                        )
+                        if excel_value(
+                            row,
+                            "has_landing_page"
+                        ) == "Yes"
+                        else None
+                    ),
+                    spatial_granularity=(
+                        excel_value(
+                            row,
+                            "spatial_other"
+                        )
+                        if excel_value(
+                            row,
+                            "spatial_granularity"
+                        ) == "Other"
+                        else excel_value(
+                            row,
+                            "spatial_granularity"
+                        )
+                    ),
+                    contract_number=excel_value(
+                        row,
+                        "contract_number"
+                    ),
+                    additional_properties={}
+                )
+
+                dataset["identifier"] = identifier
+                imported_datasets.append(dataset)
+
+            if errors:
+
+                st.error(
+                    "The workbook needs corrections before it can be imported:"
+                )
+
+                for error in errors:
+                    st.write(
+                        f"• {error}"
+                    )
+
+            else:
+
+                st.session_state.datasets.extend(
+                    imported_datasets
+                )
+
+                if not catalog_contact:
+                    catalog_contact = generalized_contact(
+                        bureau_contacts
+                    )
+
+                catalog = build_catalog(
+                    bureau_info=bureau_info,
+                    catalog_contact_name=(
+                        catalog_contact.get("name", "")
+                        if catalog_contact
+                        else ""
+                    ),
+                    catalog_contact_email=(
+                        catalog_contact.get("email", "")
+                        if catalog_contact
+                        else ""
+                    ),
+                    catalog_contact_phone=(
+                        catalog_contact.get("phone", "")
+                        if catalog_contact
+                        else ""
+                    ),
+                    catalog_contact_organization=(
+                        catalog_contact.get("organization", "")
+                        if catalog_contact
+                        else ""
+                    ),
+                    datasets=st.session_state.datasets
+                )
+
+                st.success(
+                    f"✓ Imported {len(imported_datasets)} "
+                    "dataset(s) and updated the tags, themes, "
+                    "and contacts databases."
+                )
+
+                st.download_button(
+                    "Download Catalog JSON",
+                    data=json.dumps(
+                        catalog,
+                        indent=2,
+                        ensure_ascii=False
+                    ),
+                    file_name="data.json",
+                    mime="application/json",
+                    key="excel_catalog_download"
+                )
+
+                st.json(catalog)
+
+        except Exception as error:
+
+            st.error(
+                "Could not process the workbook: "
+                f"{error}"
+            )
 
     st.stop()
 
 
 # ============================================================
-# GUIDED MODE
+# BUREAU
 # ============================================================
 
-st.session_state.mode = "guided"
-
-st.markdown("## Guided mode")
-st.caption(
-    "This keeps the current question-by-question workflow. The Additional "
-    "DCAT-US Properties section is intentionally excluded in this phase."
+st.markdown(
+    '<div class="section-header">'
+    '<h2>1. Bureau Information</h2>'
+    '</div>',
+    unsafe_allow_html=True
 )
 
-
-# ------------------------------------------------------------
-# Catalog / bureau
-# ------------------------------------------------------------
-
-catalog_seed = st.session_state.uploaded_catalog or {}
-inferred_bureau = infer_bureau(catalog_seed)
-
-bureau_names = list(BUREAUS.keys())
-bureau_default = bureau_names.index(inferred_bureau) if inferred_bureau in bureau_names else 0
-
-selected_bureau = st.selectbox(
-    "Which bureau are you submitting metadata for? **(Required)**",
-    bureau_names,
-    index=bureau_default,
-)
-bureau_info = BUREAUS[selected_bureau]
-
-catalog_contact_seed = contact_from_dataset(
-    {"contactPoint": catalog_seed.get("contactPoint", [])}
+bureau_names = list(
+    BUREAUS.keys()
 )
 
-st.markdown("### Catalog contact")
-catalog_contact_name = st.text_input(
-    "Who should be contacted with questions about this catalog? — Contact name **(Required)**",
-    value=catalog_contact_seed.get("name", ""),
-)
-catalog_contact_email = st.text_input(
-    "Catalog contact email",
-    value=catalog_contact_seed.get("email", ""),
-)
-catalog_contact_phone = st.text_input(
-    "Catalog contact phone",
-    value=catalog_contact_seed.get("phone", ""),
-)
-catalog_contact_organization = st.text_input(
-    "Catalog contact organization",
-    value=catalog_contact_seed.get("organization", bureau_info["publisher"]),
-)
+inferred_bureau = None
 
+if st.session_state.uploaded_catalog:
 
-# ------------------------------------------------------------
-# Dataset loop
-# ------------------------------------------------------------
-
-existing_datasets = st.session_state.datasets or []
-
-if existing_datasets:
-    st.info(
-        f"{len(existing_datasets)} dataset(s) were loaded from the existing JSON. "
-        "The guided form is primarily intended for editing/continuing the catalog."
+    publisher_name = (
+        (st.session_state.uploaded_catalog.get("publisher") or {})
+        .get("name", "")
     )
 
-dataset_number = st.session_state.current_dataset
-seed = (
-    existing_datasets[dataset_number - 1]
-    if len(existing_datasets) >= dataset_number
-    else {}
+    inferred_bureau = next(
+        (
+            bureau_name
+            for bureau_name, bureau_info in BUREAUS.items()
+            if bureau_info["publisher"].lower()
+            == publisher_name.lower()
+        ),
+        None
+    )
+
+selected_bureau = st.selectbox(
+    "Which bureau are you submitting metadata for? "
+    "**(Required)**",
+    bureau_names,
+    index=(
+        bureau_names.index(inferred_bureau)
+        if inferred_bureau in bureau_names
+        else 0
+    ),
+    key="guided_bureau"
 )
 
-seed_contact = contact_from_dataset(seed)
-seed_temporal = first_value(seed.get("temporal", [])) or {}
-seed_spatial = first_value(seed.get("spatial", [])) or {}
-seed_access = first_value(seed.get("accessRestriction", [])) or {}
-seed_use = first_value(seed.get("useRestriction", [])) or {}
-seed_cui = seed.get("CUIRestriction") or {}
-seed_dictionary = seed.get("describedBy") or {}
-seed_landing = seed.get("landingPage") or {}
+st.session_state.bureau = selected_bureau
 
-st.markdown(f"## Dataset {dataset_number}")
+bureau_info = BUREAUS[
+    selected_bureau
+]
+
+
+# ============================================================
+# CATALOG INFORMATION
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>2. Catalog Information</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    f"""
+    <div class="question-help">
+    <strong>Catalog name:</strong>
+    {bureau_info['publisher']} Data Catalog
+    <br><br>
+    <strong>Description:</strong>
+    These data are cataloged by {bureau_info['publisher']}.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# CATALOG CONTACT
+# ============================================================
+
+contacts = load_json_file(
+    CONTACTS_FILE,
+    []
+)
+
+bureau_contacts = get_contacts_for_bureau(
+    contacts,
+    selected_bureau
+)
+
+catalog_contact_options = [
+    "Select a catalog contact",
+    "＋ Add a new contact"
+]
+
+catalog_contact_options.extend(
+    [
+        contact_display(contact)
+        for contact in bureau_contacts
+    ]
+)
+
+catalog_contact_choice = st.selectbox(
+    "Who should be contacted with questions "
+    "about this catalog? **(Required)**",
+    catalog_contact_options,
+    index=default_contact_index(catalog_contact_options),
+    key=f"catalog_contact_{normalize_text(selected_bureau)}"
+)
+
+
+catalog_contact_name = ""
+catalog_contact_email = ""
+catalog_contact_phone = ""
+catalog_contact_organization = ""
+
+
+if catalog_contact_choice == "＋ Add a new contact":
+
+    catalog_contact_name = st.text_input(
+        "Contact name",
+        key="catalog_new_name"
+    )
+
+    catalog_contact_email = st.text_input(
+        "Email",
+        key="catalog_new_email"
+    )
+
+    catalog_contact_phone = st.text_input(
+        "Phone",
+        key="catalog_new_phone"
+    )
+
+    catalog_contact_organization = st.text_input(
+        "Organization",
+        value=bureau_info["publisher"],
+        key="catalog_new_org"
+    )
+
+    if st.button(
+        "Save Catalog Contact",
+        key="save_catalog_contact"
+    ):
+
+        if not catalog_contact_name.strip():
+
+            st.error(
+                "Contact name is required."
+            )
+
+        else:
+
+            save_contact(
+                selected_bureau,
+                catalog_contact_name,
+                catalog_contact_email,
+                catalog_contact_phone,
+                catalog_contact_organization
+            )
+
+            st.success(
+                "✓ Contact saved successfully."
+            )
+
+            st.rerun()
+
+
+elif (
+    catalog_contact_choice
+    != "Select a catalog contact"
+):
+
+    selected_contact = next(
+        (
+            contact
+            for contact in bureau_contacts
+            if contact_display(contact)
+            == catalog_contact_choice
+        ),
+        None
+    )
+
+    if selected_contact:
+
+        catalog_contact_name = selected_contact.get(
+            "name",
+            ""
+        )
+
+        catalog_contact_email = selected_contact.get(
+            "email",
+            ""
+        )
+
+        catalog_contact_phone = selected_contact.get(
+            "phone",
+            ""
+        )
+
+        catalog_contact_organization = (
+            selected_contact.get(
+                "organization",
+                ""
+            )
+        )
+
+        st.markdown(
+            '<div class="saved-indicator">'
+            '✓ Catalog contact selected'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+# ============================================================
+# DATASET
+# ============================================================
+
+dataset_number = (
+    st.session_state.current_dataset
+)
+
+st.markdown(
+    f"""
+    <div class="section-header">
+    <h2>3. Dataset {dataset_number}</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# Q3 TITLE
+# ============================================================
 
 title = st.text_input(
     "What is the dataset called? **(Required)**",
-    value=seed.get("title", ""),
+    key=f"title_{dataset_number}"
 )
+
+
+# ============================================================
+# Q4 DESCRIPTION
+# ============================================================
+
+
 description = st.text_area(
     "Dataset description in plain language. **(Required)**",
-    value=seed.get("description", ""),
     height=160,
+    key=f"description_{dataset_number}"
 )
-
-identifier = seed.get("identifier", f"{bureau_info['identifier_code']}-{dataset_number:06d}")
 st.markdown(
-    f'<div class="saved-indicator">Automatically assigned identifier: '
-    f'<strong>{identifier}</strong></div>',
-    unsafe_allow_html=True,
+    """
+    <div class="question-help">
+    Example:<br>
+    “The Current Population Survey (CPS) is a monthly survey of households conducted
+    by the Census Bureau for the Bureau of Labor Statistics. In addition to the
+    national unemployment rate, it provides data on employment, the unemployment
+    rate, persons not in the labor force, hours of work, earnings, and other
+    demographic and labor force characteristics.”
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
-publisher_office = st.text_input(
+
+# ============================================================
+# Q5 IDENTIFIER
+# ============================================================
+
+st.markdown(
+    "### Dataset identifier"
+)
+
+identifier = (
+    f"{bureau_info['identifier_code']}-"
+    f"{dataset_number:06d}"
+)
+
+st.markdown(
+    f"""
+    <div class="saved-indicator">
+    Automatically assigned identifier:
+    <strong>{identifier}</strong>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# Q6 PUBLISHER
+# ============================================================
+
+office_options = [
+    "Select an office",
+    "＋ Add a new office"
+]
+
+office_options.extend(
+    sorted(
+        set(
+            contact.get("organization")
+            for contact in bureau_contacts
+            if contact.get("organization")
+        )
+    )
+)
+
+selected_office = st.selectbox(
     "Which office publishes these data? **(Required)**",
-    value=(seed.get("publisher") or {}).get("name", ""),
+    office_options,
+    key=f"office_{dataset_number}"
 )
 
-st.markdown("### Dataset contact")
-dataset_contact_name = st.text_input(
-    "Best dataset contact — Name **(Required)**",
-    value=seed_contact.get("name", ""),
-)
-dataset_contact_email = st.text_input(
-    "Dataset contact email",
-    value=seed_contact.get("email", ""),
-)
-dataset_contact_phone = st.text_input(
-    "Dataset contact phone",
-    value=seed_contact.get("phone", ""),
-)
-dataset_contact_organization = st.text_input(
-    "Dataset contact organization",
-    value=seed_contact.get("organization", publisher_office or bureau_info["publisher"]),
+if selected_office == "＋ Add a new office":
+
+    publisher_office = st.text_input(
+        "New office name",
+        key=f"new_office_{dataset_number}"
+    )
+
+elif selected_office == "Select an office":
+
+    publisher_office = ""
+
+else:
+
+    publisher_office = selected_office
+
+
+# ============================================================
+# Q7 DATASET CONTACT
+# ============================================================
+
+dataset_contact_options = [
+    "Select a contact",
+    "＋ Add a new contact"
+]
+
+dataset_contact_options.extend(
+    [
+        contact_display(contact)
+        for contact in bureau_contacts
+    ]
 )
 
-tags_db = sorted(set(normalize_text(x) for x in load_json_file(TAGS_FILE, []) if normalize_text(x)))
-seed_keywords = [str(x) for x in seed.get("keyword", []) or []]
-
-keywords = st.multiselect(
-    "What words would someone use to search for these data? **(Required)**",
-    tags_db,
-    default=[x for x in seed_keywords if x in tags_db],
+dataset_contact_choice = st.selectbox(
+    "What is the best contact for questions "
+    "about this dataset? **(Required)**",
+    dataset_contact_options,
+    index=default_contact_index(dataset_contact_options),
+    key=f"dataset_contact_{dataset_number}_{normalize_text(selected_bureau)}"
 )
-new_keywords = st.text_input(
-    "Add new keywords (optional, semicolon-separated)",
-    placeholder="trade; exports; employment",
-)
-keywords = list(dict.fromkeys(keywords + split_cell(new_keywords)))
-if new_keywords:
-    ensure_tags_in_database(split_cell(new_keywords))
 
-themes_db = load_json_file(THEMES_FILE, [])
-theme_names = [normalize_text(x.get("name", "")) for x in themes_db if normalize_text(x.get("name", ""))]
-seed_themes = []
-for x in seed.get("theme", []) or []:
-    if isinstance(x, dict):
-        seed_themes.append(normalize_text(x.get("prefLabel") or x.get("name", "")))
+
+contact_name = ""
+contact_email = ""
+contact_phone = ""
+contact_organization = ""
+
+
+if dataset_contact_choice == "＋ Add a new contact":
+
+    contact_name = st.text_input(
+        "Contact name",
+        key=f"contact_name_{dataset_number}"
+    )
+
+    contact_email = st.text_input(
+        "Email",
+        key=f"contact_email_{dataset_number}"
+    )
+
+    contact_phone = st.text_input(
+        "Phone",
+        key=f"contact_phone_{dataset_number}"
+    )
+
+    contact_organization = st.text_input(
+        "Organization",
+        value=(
+            publisher_office
+            or bureau_info["publisher"]
+        ),
+        key=f"contact_org_{dataset_number}"
+    )
+
+    if st.button(
+        "Save Contact",
+        key=f"save_contact_{dataset_number}"
+    ):
+
+        if not contact_name.strip():
+
+            st.error(
+                "Contact name is required."
+            )
+
+        else:
+
+            save_contact(
+                selected_bureau,
+                contact_name,
+                contact_email,
+                contact_phone,
+                contact_organization
+            )
+
+            st.success(
+                "✓ Contact saved successfully. "
+                "It is now available for this bureau."
+            )
+
+            st.rerun()
+
+
+elif (
+    dataset_contact_choice
+    != "Select a contact"
+):
+
+    selected_contact = next(
+        (
+            contact
+            for contact in bureau_contacts
+            if contact_display(contact)
+            == dataset_contact_choice
+        ),
+        None
+    )
+
+    if selected_contact:
+
+        contact_name = selected_contact.get(
+            "name",
+            ""
+        )
+
+        contact_email = selected_contact.get(
+            "email",
+            ""
+        )
+
+        contact_phone = selected_contact.get(
+            "phone",
+            ""
+        )
+
+        contact_organization = (
+            selected_contact.get(
+                "organization",
+                ""
+            )
+        )
+
+        st.markdown(
+            '<div class="saved-indicator">'
+            '✓ Dataset contact selected'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+# ============================================================
+# Q8 KEYWORDS
+# ============================================================
+
+st.markdown(
+    "### What words would someone use to search "
+    "for these data? **(Required)**"
+)
+
+tags = load_json_file(
+    TAGS_FILE,
+    []
+)
+
+tags = sorted(
+    set(
+        normalize_tag(tag)
+        for tag in tags
+        if normalize_tag(tag)
+    )
+)
+
+keyword_state_key = (
+    f"selected_keywords_{dataset_number}"
+)
+
+keyword_widget_key = (
+    f"keyword_widget_{dataset_number}"
+)
+
+if keyword_state_key not in st.session_state:
+    st.session_state[keyword_state_key] = []
+
+
+selected_tags = st.multiselect(
+    "Select keywords",
+    tags,
+    key=keyword_widget_key
+)
+
+# Synchronize the separate application state
+# with the widget.
+st.session_state[keyword_state_key] = (
+    selected_tags
+)
+
+
+new_tag = st.text_input(
+    "Add a new keyword",
+    placeholder="Example: trade, exports, employment",
+    key=f"new_tag_{dataset_number}"
+)
+
+
+if st.button(
+    "Save Keyword",
+    key=f"save_tag_{dataset_number}"
+):
+
+    normalized_tag = normalize_tag(
+        new_tag
+    )
+
+    if not normalized_tag:
+
+        st.error(
+            "Please enter a keyword."
+        )
+
     else:
-        seed_themes.append(normalize_text(x))
 
-themes = st.multiselect(
-    "What theme does this dataset belong to? **(Required)**",
+        tags = load_json_file(
+            TAGS_FILE,
+            []
+        )
+
+        normalized_tags = sorted(
+            set(
+                normalize_tag(tag)
+                for tag in tags
+                if normalize_tag(tag)
+            )
+        )
+
+        if normalized_tag not in normalized_tags:
+
+            normalized_tags.append(
+                normalized_tag
+            )
+
+            normalized_tags.sort()
+
+            save_json_file(
+                TAGS_FILE,
+                normalized_tags
+            )
+
+        # Add the new keyword to the dataset's
+        # selected values.
+        current_keywords = list(
+            st.session_state.get(
+                keyword_state_key,
+                []
+            )
+        )
+
+        if normalized_tag not in current_keywords:
+
+            current_keywords.append(
+                normalized_tag
+            )
+
+        # IMPORTANT:
+        # Do NOT directly modify the widget's
+        # session-state key here.
+        #
+        # Store the selection separately and
+        # use a pending value to initialize the
+        # widget after rerun.
+        st.session_state[
+            f"pending_keywords_{dataset_number}"
+        ] = current_keywords
+
+        st.session_state[
+            f"keyword_success_{dataset_number}"
+        ] = (
+            f'✓ "{normalized_tag}" was saved '
+            "and selected for this dataset."
+        )
+
+        st.rerun()
+
+
+# Apply pending keyword selections AFTER the
+# widget has been created.
+pending_keywords_key = (
+    f"pending_keywords_{dataset_number}"
+)
+
+if pending_keywords_key in st.session_state:
+
+    pending_keywords = (
+        st.session_state[
+            pending_keywords_key
+        ]
+    )
+
+    st.session_state[
+        keyword_state_key
+    ] = pending_keywords
+
+    # Remove pending state so this only happens
+    # once.
+    del st.session_state[
+        pending_keywords_key
+    ]
+
+
+if (
+    f"keyword_success_{dataset_number}"
+    in st.session_state
+):
+
+    st.markdown(
+        f"""
+        <div class="saved-indicator">
+        {st.session_state[
+            f"keyword_success_{dataset_number}"
+        ]}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    del st.session_state[
+        f"keyword_success_{dataset_number}"
+    ]
+
+
+# ============================================================
+# Q9 THEMES
+# ============================================================
+
+st.markdown(
+    "### What theme does this dataset belong to? "
+    "**(Required)**"
+)
+
+themes = load_json_file(
+    THEMES_FILE,
+    []
+)
+
+themes = sorted(
+    themes,
+    key=lambda x: normalize_theme_name(
+        x.get("name", "")
+    )
+)
+
+theme_names = [
+    normalize_theme_name(
+        theme.get("name", "")
+    )
+    for theme in themes
+]
+
+theme_descriptions = {
+    normalize_theme_name(
+        theme.get("name", "")
+    ): theme.get(
+        "description",
+        ""
+    )
+    for theme in themes
+}
+
+
+def format_theme(theme_name):
+
+    description = (
+        theme_descriptions.get(
+            theme_name,
+            ""
+        )
+    )
+
+    if description:
+
+        return (
+            f"{theme_name} — "
+            f"{description}"
+        )
+
+    return theme_name
+
+
+theme_state_key = (
+    f"selected_themes_{dataset_number}"
+)
+
+theme_widget_key = (
+    f"theme_widget_{dataset_number}"
+)
+
+if theme_state_key not in st.session_state:
+    st.session_state[theme_state_key] = []
+
+
+selected_themes = st.multiselect(
+    "Select themes",
     theme_names,
-    default=[x for x in seed_themes if x in theme_names],
+    format_func=format_theme,
+    key=theme_widget_key
 )
-new_themes = st.text_input(
-    "Add new themes (optional, semicolon-separated)",
-    placeholder="climate; public health",
+
+st.session_state[theme_state_key] = (
+    selected_themes
 )
-new_theme_descriptions = st.text_area(
-    "Descriptions for new themes (same order, semicolon-separated)",
-    placeholder="Description for climate; Description for public health",
-)
-themes = list(dict.fromkeys(themes + split_cell(new_themes)))
-if new_themes:
-    try:
-        ensure_themes_in_database(themes, split_cell(new_theme_descriptions))
-    except ValueError:
-        pass
 
 
-# Access
-st.markdown("### Access & Restrictions")
+with st.expander(
+    "＋ Add a new theme"
+):
+
+    new_theme_name = st.text_input(
+        "Theme name",
+        key=f"new_theme_name_{dataset_number}"
+    )
+
+    new_theme_description = st.text_area(
+        "Short description **(Required)**",
+        placeholder=(
+            "Describe what this theme covers "
+            "and when it should be used."
+        ),
+        key=f"new_theme_description_{dataset_number}"
+    )
+
+    if st.button(
+        "Save Theme",
+        key=f"save_theme_{dataset_number}"
+    ):
+
+        normalized_theme = (
+            normalize_theme_name(
+                new_theme_name
+            )
+        )
+
+        description_text = (
+            new_theme_description.strip()
+        )
+
+        if not normalized_theme:
+
+            st.error(
+                "Please enter a theme name."
+            )
+
+        elif not description_text:
+
+            st.error(
+                "Please provide a short description "
+                "of the theme."
+            )
+
+        else:
+
+            themes = load_json_file(
+                THEMES_FILE,
+                []
+            )
+
+            existing_theme = any(
+                normalize_theme_name(
+                    theme.get("name", "")
+                )
+                == normalized_theme
+                for theme in themes
+            )
+
+            if existing_theme:
+
+                st.error(
+                    "That theme already exists."
+                )
+
+            else:
+
+                themes.append(
+                    {
+                        "name": normalized_theme,
+                        "description": (
+                            description_text
+                        )
+                    }
+                )
+
+                themes.sort(
+                    key=lambda x:
+                    normalize_theme_name(
+                        x.get("name", "")
+                    )
+                )
+
+                save_json_file(
+                    THEMES_FILE,
+                    themes
+                )
+
+                current_themes = list(
+                    st.session_state.get(
+                        theme_state_key,
+                        []
+                    )
+                )
+
+                if (
+                    normalized_theme
+                    not in current_themes
+                ):
+
+                    current_themes.append(
+                        normalized_theme
+                    )
+
+                # Store as pending rather than
+                # directly modifying the widget.
+                st.session_state[
+                    f"pending_themes_{dataset_number}"
+                ] = current_themes
+
+                st.session_state[
+                    f"theme_success_{dataset_number}"
+                ] = (
+                    f'✓ "{normalized_theme}" '
+                    "was saved and selected "
+                    "for this dataset."
+                )
+
+                st.rerun()
+
+
+# Apply pending theme selections after rerun.
+pending_themes_key = (
+    f"pending_themes_{dataset_number}"
+)
+
+if pending_themes_key in st.session_state:
+
+    pending_themes = (
+        st.session_state[
+            pending_themes_key
+        ]
+    )
+
+    st.session_state[
+        theme_state_key
+    ] = pending_themes
+
+    del st.session_state[
+        pending_themes_key
+    ]
+
+
+if (
+    f"theme_success_{dataset_number}"
+    in st.session_state
+):
+
+    st.markdown(
+        f"""
+        <div class="saved-indicator">
+        {st.session_state[
+            f"theme_success_{dataset_number}"
+        ]}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    del st.session_state[
+        f"theme_success_{dataset_number}"
+    ]
+
+
+# ============================================================
+# Q10 ACCESS RIGHTS
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Access & Restrictions</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    **Reference definitions:**
+
+    [NARA Access Restriction Status Authority List](https://www.archives.gov/research/catalog/lcdrg/authority-lists/access-restriction-status)
+
+    [NARA Specific Access Restriction Authority List](https://www.archives.gov/research/catalog/lcdrg/authority-lists/specific-access-restriction)
+    """
+)
 
 access_rights = st.selectbox(
-    "Who is allowed to access these data? **(Required)**",
-    ACCESS_RIGHTS_OPTIONS,
-    index=(
-        ACCESS_RIGHTS_OPTIONS.index(seed.get("accessRights"))
-        if seed.get("accessRights") in ACCESS_RIGHTS_OPTIONS else 0
-    ),
+    "Who is allowed to access these data? "
+    "**(Required)**",
+    [
+        "These data are public",
+        "These data are restricted",
+        "These data are not public"
+    ],
+    key=f"access_rights_{dataset_number}"
 )
 
+
+# ============================================================
+# Q11 ACCESS RESTRICTION
+# ============================================================
+
 has_access_restriction = st.radio(
-    "Are there any restrictions on getting these data? **(Required)**",
-    YES_NO,
-    index=1 if seed_access else 0,
+    "Are there any restrictions on getting these data? "
+    "**(Required)**",
+    [
+        "No",
+        "Yes"
+    ],
     horizontal=True,
+    key=f"has_access_restriction_{dataset_number}"
 )
 
 access_restriction = None
+
+
 if has_access_restriction == "Yes":
+
     access_status = st.selectbox(
-        "What is the data restriction status? **(Required)**",
-        ACCESS_STATUS_OPTIONS,
-        index=(
-            ACCESS_STATUS_OPTIONS.index(seed_access.get("restrictionStatus"))
-            if seed_access.get("restrictionStatus") in ACCESS_STATUS_OPTIONS else 0
-        ),
+        "What is these data' restriction status? "
+        "**(Required)**",
+        [
+            "Restricted - Fully",
+            "Restricted - Partly",
+            "Restricted - Possibly",
+            "Undetermined",
+            "Unrestricted"
+        ],
+        key=f"access_status_{dataset_number}"
     )
-    access_specific = st.multiselect(
-        "What is the specific access restriction? **(Required)**",
-        SPECIFIC_ACCESS_OPTIONS,
-        default=split_cell(seed_access.get("specificRestriction", "")),
+
+    specific_access = st.multiselect(
+        "What is the specific access restriction? "
+        "**(Required)**",
+        [
+            "FOIA (b)(1) National Security",
+            "FOIA (b)(2) Internal Personnel Rules and Practices",
+            "FOIA (b)(3) Statute",
+            "FOIA (b)(4) Trade Secrets and Commercial Information",
+            "FOIA (b)(5) Privileged Inter-Agency or Intra-Agency Information",
+            "FOIA (b)(6) Personal Information",
+            "FOIA (b)(7) Law Enforcement",
+            "FOIA (b)(8) Financial Institutions",
+            "FOIA (b)(9) Geological and Geophysical Information",
+            "Other"
+        ],
+        key=f"specific_access_{dataset_number}"
     )
+
     access_note = st.text_area(
-        "Additional information about the restriction (Optional)",
-        value=seed_access.get("restrictionNote", ""),
+        "Additional information about the restriction "
+        "(Optional)",
+        key=f"access_note_{dataset_number}"
     )
+
     access_restriction = {
         "restrictionStatus": access_status,
-        "specificRestriction": access_specific,
-        "restrictionNote": access_note,
+        "specificRestriction": specific_access,
+        "restrictionNote": access_note
     }
 
 
-# CUI
-st.markdown("### Controlled Unclassified Information")
+# ============================================================
+# Q12 CUI
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Controlled Unclassified Information</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    **Reference definitions:**
+
+    [NARA CUI Markings](https://www.archives.gov/cui/registry/category-marking-list)
+
+    [NARA CUI Registry](https://www.archives.gov/cui)
+    """
+)
 
 has_cui = st.radio(
-    "Does the dataset contain Controlled Unclassified Information (CUI)? **(Required)**",
-    YES_NO,
-    index=1 if seed_cui else 0,
+    "Does the dataset contain Controlled "
+    "Unclassified Information (CUI)? **(Required)**",
+    [
+        "No",
+        "Yes"
+    ],
     horizontal=True,
+    key=f"has_cui_{dataset_number}"
 )
+
 cui_restriction = None
+
+
 if has_cui == "Yes":
+
     cui_banner = st.selectbox(
-        "Which CUI Banner Marking are these data associated with? **(Required)**",
-        CUI_OPTIONS,
-        index=CUI_OPTIONS.index(seed_cui.get("cuiBannerMarking"))
-        if seed_cui.get("cuiBannerMarking") in CUI_OPTIONS else 0,
+        "Which CUI Banner Marking are these data "
+        "associated with? **(Required)**",
+        [
+            "CONTROLLED",
+            "SP-PROPIN",
+            "SP-CTI",
+            "SP-PRVCY",
+            "SP-PII",
+            "SP-HLTH",
+            "SP-FIN"
+        ],
+        key=f"cui_banner_{dataset_number}"
     )
+
     cui_designation = st.text_area(
-        "Which agency designated the information as CUI? Include contact information when possible. **(Required)**",
-        value=seed_cui.get("designationIndicator", ""),
+        "Which agency designated the information "
+        "as CUI? Include contact information when "
+        "possible. **(Required)**",
+        key=f"cui_designation_{dataset_number}"
     )
+
     cui_restriction = {
         "cuiBannerMarking": cui_banner,
-        "designationIndicator": cui_designation,
+        "designationIndicator": cui_designation
     }
 
 
-# Use restrictions
-st.markdown("### Use Restrictions")
+# ============================================================
+# Q13 USE RESTRICTIONS
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Use Restrictions</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    **Reference definitions:**
+
+    [NARA Use Restriction Status Authority List](https://www.archives.gov/research/catalog/lcdrg/authority-lists/use-restriction-status)
+
+    [NARA Specific Use Restriction Authority List](https://www.archives.gov/research/catalog/lcdrg/authority-lists/specific-use-restriction)
+    """
+)
 
 has_use_restriction = st.radio(
-    "Are there any other rules about how these data may be used, such as use restriction, license, or rights? **(Required)**",
-    YES_NO,
-    index=1 if seed_use or seed.get("license") or seed.get("rights") else 0,
+    "Are there any other rules about how these data "
+    "may be used, such as use restriction, license, "
+    "or rights? **(Required)**",
+    [
+        "No",
+        "Yes"
+    ],
     horizontal=True,
+    key=f"has_use_restriction_{dataset_number}"
 )
 
 use_restriction = None
-license_value = seed.get("license", "")
-rights_value = "; ".join(split_cell(seed.get("rights", "")))
+license = ""
+rights = ""
+
 
 if has_use_restriction == "Yes":
-    default_types = []
-    if seed_use:
-        default_types.append("Use restriction")
-    if seed.get("license"):
-        default_types.append("License")
-    if seed.get("rights"):
-        default_types.append("Rights")
 
     restriction_types = st.multiselect(
         "What type of rule applies? **(Required)**",
-        USE_TYPE_OPTIONS,
-        default=default_types,
+        [
+            "Use restriction",
+            "License",
+            "Rights"
+        ],
+        key=f"restriction_types_{dataset_number}"
     )
 
     if "Use restriction" in restriction_types:
+
         use_status = st.selectbox(
             "Use restriction status **(Required)**",
-            ACCESS_STATUS_OPTIONS,
-            index=(
-                ACCESS_STATUS_OPTIONS.index(seed_use.get("restrictionStatus"))
-                if seed_use.get("restrictionStatus") in ACCESS_STATUS_OPTIONS else 0
-            ),
+            [
+                "Restricted - Fully",
+                "Restricted - Partly",
+                "Restricted - Possibly",
+                "Undetermined",
+                "Unrestricted"
+            ],
+            key=f"use_status_{dataset_number}"
         )
+
         specific_use = st.multiselect(
             "Specific use restriction **(Required)**",
-            SPECIFIC_USE_OPTIONS,
-            default=split_cell(seed_use.get("specificRestriction", "")),
+            [
+                "Copyright",
+                "Donor Restrictions",
+                "Public Law",
+                "Other"
+            ],
+            key=f"specific_use_{dataset_number}"
         )
+
         use_note = st.text_area(
             "Use restriction note (Optional)",
-            value=seed_use.get("restrictionNote", ""),
+            key=f"use_note_{dataset_number}"
         )
+
         use_restriction = {
             "restrictionStatus": use_status,
             "specificRestriction": specific_use,
-            "restrictionNote": use_note,
+            "restrictionNote": use_note
         }
 
     if "License" in restriction_types:
-        license_value = st.text_input(
-            "What license applies to these data? **(Required)**",
-            value=license_value,
+
+        license = st.text_input(
+            "What license applies to these data? "
+            "**(Required)**",
+            key=f"license_{dataset_number}"
         )
 
     if "Rights" in restriction_types:
-        rights_value = st.text_area(
-            "What other rights have not been covered? **(Required)**",
-            value=rights_value,
+
+        rights = st.text_area(
+            "What other rights have not been covered? "
+            "**(Required)**",
+            key=f"rights_{dataset_number}"
         )
 
 
-# Coverage
-st.markdown("### Coverage & Dates")
+# ============================================================
+# Q14 TEMPORAL
+# ============================================================
+
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Coverage & Dates</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    "### What time period do these data cover?"
+)
+
+st.caption(
+    "Enter YYYY, YYYY-MM, or YYYY-MM-DD."
+)
 
 temporal_start = st.text_input(
     "Start date **(Required)**",
-    value=seed_temporal.get("startDate", ""),
     placeholder="YYYY, YYYY-MM, or YYYY-MM-DD",
+    key=f"temporal_start_{dataset_number}"
 )
+
 temporal_end = st.text_input(
     "End date **(Required)**",
-    value=seed_temporal.get("endDate", ""),
     placeholder="YYYY, YYYY-MM, or YYYY-MM-DD",
+    key=f"temporal_end_{dataset_number}"
 )
+
+
+# ============================================================
+# Q15 SPATIAL
+# ============================================================
 
 spatial_granularity = st.selectbox(
     "Spatial Granularity",
-    [""] + SPATIAL_GRANULARITY_OPTIONS,
-    index=(
-        ([""] + SPATIAL_GRANULARITY_OPTIONS).index(seed.get("spatialGranularity"))
-        if seed.get("spatialGranularity") in ([""] + SPATIAL_GRANULARITY_OPTIONS)
-        else 0
-    ),
+    [
+        "",
+        "Continent",
+        "Country",
+        "State",
+        "County",
+        "City",
+        "ZIP Code",
+        "Census Tract",
+        "Other",
+    ],
+    help="The geographic level at which the dataset's data are provided.",
 )
-spatial_granularity_other = ""
+st.markdown(
+    "### Where do these data cover?"
+)
+
+spatial_other = ""
 if spatial_granularity == "Other":
-    spatial_granularity_other = st.text_input(
+    spatial_other = st.text_input(
         "Specify other spatial granularity",
-        value=seed.get("spatialGranularity", ""),
+        placeholder="e.g., Watershed, School District, Parcel",
     )
 
-spatial_value = (
-    seed_spatial.get("name")
-    if isinstance(seed_spatial, dict)
-    else str(seed_spatial or "")
-)
+
+
+
 spatial = st.text_input(
     "Geographic coverage **(Required)**",
-    value=spatial_value,
-    placeholder="Example: United States, Washington, DC, or worldwide",
+    placeholder=(
+        "Example: United States, Washington, DC, "
+        "or worldwide"
+    ),
+    key=f"spatial_{dataset_number}"
 )
+
+
+# ============================================================
+# Q16 MODIFIED
+# ============================================================
 
 modified = st.text_input(
     "When were these data last changed? **(Required)**",
-    value=seed.get("modified", ""),
     placeholder="YYYY, YYYY-MM, or YYYY-MM-DD",
+    key=f"modified_{dataset_number}"
 )
 
+validate_date_field("Modified date", modified)
 
-# Optional documentation
-st.markdown("### Documentation")
+
+# ============================================================
+# Q17 DATA DICTIONARY
+# ============================================================
 
 has_dictionary = st.radio(
-    "Does this dataset have a data dictionary? **(Optional)**",
-    YES_NO,
-    index=1 if seed_dictionary else 0,
+    "Does this dataset have a data dictionary? "
+    "**(Optional)**",
+    [
+        "No",
+        "Yes"
+    ],
     horizontal=True,
+    key=f"has_dictionary_{dataset_number}"
 )
-dictionary_url = ""
-dictionary_format = ""
+
+data_dictionary = None
+
+
 if has_dictionary == "Yes":
+
     dictionary_url = st.text_input(
         "Data dictionary URL **(Required)**",
-        value=seed_dictionary.get("accessURL", ""),
-    )
-    dictionary_format = st.text_input(
-        "Data dictionary format **(Required)**",
-        value=seed_dictionary.get("format", ""),
-        placeholder="HTML, PDF, CSV, XLSX",
+        key=f"dictionary_url_{dataset_number}"
     )
 
+    dictionary_format = st.text_input(
+        "Data dictionary format **(Required)**",
+        placeholder="Example: HTML, PDF, CSV, XLSX",
+        key=f"dictionary_format_{dataset_number}"
+    )
+
+    if dictionary_url:
+
+        data_dictionary = {
+            "url": dictionary_url,
+            "format": dictionary_format
+        }
+
+
+# ============================================================
+# Q18 LANDING PAGE
+# ============================================================
+
 has_landing_page = st.radio(
-    "Is there a webpage/landing page to get the data from? **(Optional)**",
-    YES_NO,
-    index=1 if seed_landing else 0,
+    "Is there a webpage/landing page to get the "
+    "data from? **(Optional)**",
+    [
+        "No",
+        "Yes"
+    ],
     horizontal=True,
+    key=f"has_landing_page_{dataset_number}"
 )
-landing_page = ""
+
+landing_page = None
+
+
 if has_landing_page == "Yes":
+
     landing_page = st.text_input(
         "Landing page URL **(Required)**",
-        value=seed_landing.get("accessURL", ""),
+        key=f"landing_page_{dataset_number}"
     )
+
+
+# ============================================================
+# Q19 CONTRACT NUMBER
+# ============================================================
 
 contract_number = st.text_input(
     "Contract number by which these data were acquired (Optional)",
-    value=seed.get("contractNumber", ""),
     max_chars=40,
+    placeholder="Up to 40 characters",
+    key=f"contract_number_{dataset_number}"
 )
 
+# ============================================================
+# Q20 ADDITIONAL DCAT-US PROPERTIES
+# ============================================================
 
-# ------------------------------------------------------------
-# Save / catalog
-# ------------------------------------------------------------
+st.markdown(
+    '<div class="section-header">'
+    '<h2>Additional DCAT-US Properties</h2>'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    <div class="question-help">
+    <strong>Optional:</strong> Add any DCAT-US 3.0 dataset properties that
+    were not collected in the questions above.
+    <br><br>
+    Select a property to see what it means and what kind of value it expects.
+    For properties that require a structured DCAT-US object or array, you can
+    enter the value as JSON.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# These are the Dataset properties documented by resources.data.gov that
+# are not already collected by the questions above.
+#
+# Source:
+# https://resources.data.gov/standards/catalog/dcat-us-3/dataset/
+#
+# "input" controls the UI:
+#   text       = one string / URI / date / duration
+#   select     = controlled value
+#   json       = object or array of DCAT-US values
+#   json_array = array of simple values
+#
+# The descriptions and examples below follow the DCAT-US 3.0 Dataset
+# reference on resources.data.gov.
+ADDITIONAL_PROPERTY_DEFINITIONS = {
+    "@id": {
+        "label": "@id",
+        "description": "A URI identifying the Dataset.",
+        "input": "text",
+        "placeholder": "https://example.gov/datasets/example",
+    },
+    "accrualPeriodicity": {
+        "label": "accrualPeriodicity",
+        "description": "The frequency at which the Dataset is updated.",
+        "input": "select",
+        "options": [
+            "continual",
+            "daily",
+            "weekly",
+            "fortnightly",
+            "monthly",
+            "quarterly",
+            "biannually",
+            "annually",
+            "asNeeded",
+            "irregular",
+            "notPlanned",
+            "unknown",
+        ],
+        "help": (
+            "resources.data.gov also permits ISO 8601 recurring values "
+            "(for example, R/P1Y) and Dublin Core frequency terms. "
+            "Use JSON mode below if you need one of those values."
+        ),
+    },
+    "category": {
+        "label": "category",
+        "description": "High-level categories for the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Concept", "prefLabel": "Climate"}]',
+    },
+    "conformsTo": {
+        "label": "conformsTo",
+        "description": "Standards, schemas, or profiles the dataset follows.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Standard", "title": "DCAT-US 3.0", '
+            '"identifier": "https://resources.data.gov/dcat-us/3.0.0"}]'
+        ),
+    },
+    "contributor": {
+        "label": "contributor",
+        "description": "Agents that contributed to the Dataset.",
+        "input": "json",
+        "example": '[{"@type": "Agent", "name": "Example Agency"}]',
+    },
+    "created": {
+        "label": "created",
+        "description": "The date on which the Dataset was first created.",
+        "input": "text",
+        "placeholder": "YYYY, YYYY-MM, or YYYY-MM-DD",
+    },
+    "creator": {
+        "label": "creator",
+        "description": "The person or organization responsible for creating the dataset.",
+        "input": "json",
+        "example": '{"@type": "Agent", "name": "Example Agency"}',
+    },
+    "first": {
+        "label": "first",
+        "description": "The first Dataset in the sequence to which this dataset belongs.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/2000"}',
+    },
+    "hasCurrentVersion": {
+        "label": "hasCurrentVersion",
+        "description": "Reference to the current/latest version of the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v2"}',
+    },
+    "hasPart": {
+        "label": "hasPart",
+        "description": "Related datasets that are part of this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/part-1"}]',
+    },
+    "hasQualityMeasurement": {
+        "label": "hasQualityMeasurement",
+        "description": (
+            "Quality measurements for the dataset, such as completeness, "
+            "accuracy, or timeliness."
+        ),
+        "input": "json",
+        "example": (
+            '[{"@type": "QualityMeasurement", '
+            '"value": 0.98}]'
+        ),
+    },
+    "hasVersion": {
+        "label": "hasVersion",
+        "description": (
+            "Related datasets that are versions, editions, "
+            "or adaptations of this dataset."
+        ),
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v2"}]',
+    },
+    "image": {
+        "label": "image",
+        "description": "A thumbnail image illustrating the dataset.",
+        "input": "text",
+        "placeholder": "https://example.gov/images/dataset.png",
+    },
+    "isReferencedBy": {
+        "label": "isReferencedBy",
+        "description": "Links to related resources that reference or cite the dataset.",
+        "input": "json_array",
+        "example": '["https://example.gov/publications/report.pdf"]',
+    },
+    "issued": {
+        "label": "issued",
+        "description": "The date when the dataset was first published.",
+        "input": "text",
+        "placeholder": "YYYY, YYYY-MM, or YYYY-MM-DD",
+    },
+    "language": {
+        "label": "language",
+        "description": "ISO 639-1 language code(s), such as en or es.",
+        "input": "json_array",
+        "example": '["en"]',
+    },
+    "liabilityStatement": {
+        "label": "liabilityStatement",
+        "description": (
+            "A statement about limitations of responsibility, accuracy, "
+            "reliability, completeness, or endorsement."
+        ),
+        "input": "text",
+        "placeholder": "Enter the liability statement.",
+    },
+    "metadataDistribution": {
+        "label": "metadataDistribution",
+        "description": (
+            "Distribution of the original metadata document "
+            "from which this dataset metadata was derived."
+        ),
+        "input": "json",
+        "example": (
+            '[{"@type": "Distribution", '
+            '"accessURL": "https://example.gov/metadata/data.json", '
+            '"mediaType": "application/json"}]'
+        ),
+    },
+    "otherIdentifier": {
+        "label": "otherIdentifier",
+        "description": "Additional identifiers, such as a DOI or other persistent identifier.",
+        "input": "json",
+        "example": '[{"notation": "10.1234/example"}]',
+    },
+    "page": {
+        "label": "page",
+        "description": "Pages or documents about the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Document", '
+            '"accessURL": "https://example.gov/about-dataset"}]'
+        ),
+    },
+    "previousVersion": {
+        "label": "previousVersion",
+        "description": "Reference to the previous version of the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/datasets/example-v1"}',
+    },
+    "provenance": {
+        "label": "provenance",
+        "description": "Statements about the lineage of the dataset.",
+        "input": "json_array",
+        "example": '["Derived from administrative records collected by Example Agency."]',
+    },
+    "purpose": {
+        "label": "purpose",
+        "description": "The purpose of the dataset.",
+        "input": "text",
+        "placeholder": "Describe why the dataset was created.",
+    },
+    "qualifiedAttribution": {
+        "label": "qualifiedAttribution",
+        "description": "Agents with specific responsibilities for the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Attribution", '
+            '"agent": {"@type": "Agent", "name": "Example Agency"}}]'
+        ),
+    },
+    "qualifiedRelation": {
+        "label": "qualifiedRelation",
+        "description": (
+            "A detailed relationship between the dataset and another "
+            "resource, including the role of that relationship."
+        ),
+        "input": "json",
+        "example": (
+            '[{"@type": "Relationship", '
+            '"hadRole": {"@type": "Concept", "prefLabel": "source"}}]'
+        ),
+    },
+    "relation": {
+        "label": "relation",
+        "description": (
+            "Links to related resources when the relationship "
+            "is not otherwise specified."
+        ),
+        "input": "json_array",
+        "example": '["https://example.gov/related-resource"]',
+    },
+    "replaces": {
+        "label": "replaces",
+        "description": "Datasets replaced by this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/old"}]',
+    },
+    "rightsHolder": {
+        "label": "rightsHolder",
+        "description": "Organizations holding rights on the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Organization", "name": "Example Agency"}]',
+    },
+    "sample": {
+        "label": "sample",
+        "description": "Sample distributions for the dataset.",
+        "input": "json",
+        "example": (
+            '[{"@type": "Distribution", '
+            '"accessURL": "https://example.gov/sample.csv", '
+            '"mediaType": "text/csv"}]'
+        ),
+    },
+    "scopeNote": {
+        "label": "scopeNote",
+        "description": "A usage note for the dataset.",
+        "input": "text",
+        "placeholder": "Enter a note about the scope of the dataset.",
+    },
+    "source": {
+        "label": "source",
+        "description": "Datasets from which this dataset was derived.",
+        "input": "json",
+        "example": '[{"@type": "Dataset", "@id": "https://example.gov/datasets/source"}]',
+    },
+    "spatialResolutionInMeters": {
+        "label": "spatialResolutionInMeters",
+        "description": "The smallest spatial distance between data points, in meters.",
+        "input": "text",
+        "placeholder": "Example: 100",
+    },
+    "status": {
+        "label": "status",
+        "description": (
+            "The lifecycle status of the dataset, such as completed, "
+            "deprecated, under development, or withdrawn."
+        ),
+        "input": "json",
+        "example": '{"@type": "Concept", "prefLabel": "completed"}',
+    },
+    "subject": {
+        "label": "subject",
+        "description": "Primary subjects for the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Concept", "prefLabel": "Employment"}]',
+    },
+    "supportedSchema": {
+        "label": "supportedSchema",
+        "description": "The schema supported by the dataset.",
+        "input": "json",
+        "example": '{"@type": "Dataset", "@id": "https://example.gov/schema"}',
+    },
+    "temporalResolution": {
+        "label": "temporalResolution",
+        "description": "The smallest time interval between data points, using xsd:duration format.",
+        "input": "text",
+        "placeholder": "Example: P1D",
+    },
+    "version": {
+        "label": "version",
+        "description": "The version indicator or identifier of the resource.",
+        "input": "text",
+        "placeholder": "Example: 2024.1",
+    },
+    "versionNotes": {
+        "label": "versionNotes",
+        "description": "Notes describing how this version differs from earlier versions.",
+        "input": "text",
+        "placeholder": "Describe the changes in this version.",
+    },
+    "wasAttributedTo": {
+        "label": "wasAttributedTo",
+        "description": "Agents attributed to this dataset.",
+        "input": "json",
+        "example": '[{"@type": "Agent", "name": "Example Agency"}]',
+    },
+    "wasGeneratedBy": {
+        "label": "wasGeneratedBy",
+        "description": (
+            "Activities that generated or provide business context "
+            "for creation of the dataset."
+        ),
+        "input": "json",
+        "example": '[{"@type": "Activity", "name": "Example project"}]',
+    },
+    "wasUsedBy": {
+        "label": "wasUsedBy",
+        "description": "Activities that used the dataset.",
+        "input": "json",
+        "example": '[{"@type": "Activity", "name": "Example analysis"}]',
+    },
+}
+
+# Keep this list synchronized with the definitions above. The existing
+# questions already collect these properties, so they should not appear
+# in the additional-property selector.
+ADDITIONAL_PROPERTY_OPTIONS = [
+    property_name
+    for property_name in ADDITIONAL_PROPERTY_DEFINITIONS
+    if property_name not in {
+        "title",
+        "description",
+        "identifier",
+        "publisher",
+        "contactPoint",
+        "keyword",
+        "theme",
+        "accessRights",
+        "accessRestriction",
+        "cuiRestriction",
+        "useRestriction",
+        "license",
+        "rights",
+        "temporal",
+        "spatial",
+        "modified",
+        "describedBy",
+        "landingPage",
+    }
+]
+
+additional_key = f"additional_properties_{dataset_number}"
+
+if additional_key not in st.session_state:
+    st.session_state[additional_key] = {}
+
+saved_additional = st.session_state[additional_key]
+
+# Show properties already added to this dataset.
+if saved_additional:
+    st.markdown("**Properties added to this dataset**")
+
+    for property_name, property_value in saved_additional.items():
+        display_value = json.dumps(
+            property_value,
+            ensure_ascii=False
+        )
+
+        col_property, col_remove = st.columns([5, 1])
+
+        with col_property:
+            st.markdown(
+                f"""
+                <div class="saved-indicator">
+                <strong>{property_name}</strong><br>
+                <code>{display_value}</code>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col_remove:
+            st.write("")
+            if st.button(
+                "Remove",
+                key=f"remove_additional_{dataset_number}_{property_name}"
+            ):
+                del saved_additional[property_name]
+                st.session_state[additional_key] = saved_additional
+                st.rerun()
+
+    st.markdown("")
+
+available_properties = [
+    property_name
+    for property_name in ADDITIONAL_PROPERTY_OPTIONS
+    if property_name not in saved_additional
+]
+
+if available_properties:
+
+    selected_additional_property = st.selectbox(
+        "Select a DCAT-US property to add",
+        ["Select a property"] + sorted(available_properties),
+        key=f"additional_property_{dataset_number}"
+    )
+
+    if selected_additional_property != "Select a property":
+
+        property_definition = ADDITIONAL_PROPERTY_DEFINITIONS[
+            selected_additional_property
+        ]
+
+        st.markdown(
+            f"**{property_definition['label']}**"
+        )
+
+        st.caption(
+            property_definition["description"]
+        )
+
+        input_type = property_definition["input"]
+
+        if input_type == "select":
+
+            selected_additional_value = st.selectbox(
+                "Value",
+                property_definition["options"],
+                key=f"additional_select_{dataset_number}"
+            )
+
+            if property_definition.get("help"):
+                st.caption(property_definition["help"])
+
+        elif input_type == "json":
+
+            example = property_definition.get(
+                "example",
+                "{}"
+            )
+
+            st.caption(
+                "This property expects a structured DCAT-US value. "
+                "Enter valid JSON."
+            )
+
+            selected_additional_value = st.text_area(
+                "Value (JSON)",
+                placeholder=example,
+                height=150,
+                key=f"additional_json_{dataset_number}"
+            )
+
+            with st.expander("Show example"):
+                st.code(example, language="json")
+
+        elif input_type == "json_array":
+
+            example = property_definition.get(
+                "example",
+                "[]"
+            )
+
+            st.caption(
+                "This property expects an array. "
+                "Enter a JSON array, for example [\"value1\", \"value2\"]."
+            )
+
+            selected_additional_value = st.text_area(
+                "Value (JSON array)",
+                placeholder=example,
+                height=120,
+                key=f"additional_json_array_{dataset_number}"
+            )
+
+            with st.expander("Show example"):
+                st.code(example, language="json")
+
+        else:
+
+            selected_additional_value = st.text_input(
+                "Value",
+                placeholder=property_definition.get(
+                    "placeholder",
+                    ""
+                ),
+                key=f"additional_text_{dataset_number}"
+            )
+
+        if st.button(
+            "＋ Add Property",
+            key=f"add_property_{dataset_number}"
+        ):
+
+            raw_value = str(
+                selected_additional_value
+            ).strip()
+
+            if not raw_value:
+
+                st.warning(
+                    "Enter a value before adding this property."
+                )
+
+            else:
+
+                final_value = raw_value
+
+                # Parse structured values so the generated dataset contains
+                # actual JSON arrays/objects rather than strings containing
+                # JSON text.
+                if input_type in {"json", "json_array"}:
+
+                    try:
+
+                        final_value = json.loads(
+                            raw_value
+                        )
+
+                    except json.JSONDecodeError as error:
+
+                        st.error(
+                            "The value is not valid JSON. "
+                            f"Check the brackets, quotes, and commas. "
+                            f"Details: {error.msg}"
+                        )
+
+                        final_value = None
+
+                    if (
+                        final_value is not None
+                        and input_type == "json_array"
+                        and not isinstance(final_value, list)
+                    ):
+
+                        st.error(
+                            "This property expects a JSON array, "
+                            "such as [\"value1\", \"value2\"]."
+                        )
+
+                        final_value = None
+
+                if final_value is not None:
+
+                    saved_additional[
+                        selected_additional_property
+                    ] = final_value
+
+                    st.session_state[
+                        additional_key
+                    ] = saved_additional
+
+                    st.success(
+                        f"✓ {selected_additional_property} "
+                        "was added to this dataset."
+                    )
+
+                    st.rerun()
+
+else:
+
+    st.success(
+        "✓ All available additional Dataset properties "
+        "have been added."
+    )
+
+st.markdown(
+    """
+    <div class="question-help">
+    <strong>Important:</strong> This section follows the DCAT-US 3.0
+    Dataset property definitions in <a href="https://resources.data.gov/standards/catalog/dcat-us-3/dataset/"
+    target="_blank">resources.data.gov</a>.
+    Structured properties are entered as JSON so that objects and arrays
+    remain correctly typed in the generated metadata. The tool checks that
+    JSON is syntactically valid, but it does not perform full DCAT-US schema
+    validation.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.warning(
+    "After generating your catalog, validate the complete JSON against "
+    "the DCAT-US 3.0 schema before publishing."
+)
+
+# ============================================================
+# SAVE DATASET
+# ============================================================
 
 st.markdown("---")
 
-if st.button(f"Save Dataset {dataset_number}", type="primary"):
-    required = {
+if st.button(
+    f"Save Dataset {dataset_number}",
+    key=f"save_dataset_{dataset_number}"
+):
+
+    selected_keywords = st.session_state.get(
+        keyword_state_key,
+        []
+    )
+
+    selected_theme_values = st.session_state.get(
+        theme_state_key,
+        []
+    )
+
+    required_fields = {
         "Dataset title": title,
         "Dataset description": description,
         "Publishing office": publisher_office,
-        "Dataset contact": dataset_contact_name,
-        "Keywords": keywords,
-        "Themes": themes,
+        "Dataset contact": contact_name,
+        "Keywords": selected_keywords,
+        "Themes": selected_theme_values,
         "Temporal start": temporal_start,
         "Temporal end": temporal_end,
-        "Geographic coverage": spatial,
-        "Modified date": modified,
+        "Spatial coverage": spatial,
+        "Modified date": modified
     }
 
-    missing = [k for k, v in required.items() if not v]
-    invalid_dates = [
-        label
-        for label, value in [
-            ("Temporal start", temporal_start),
-            ("Temporal end", temporal_end),
-            ("Modified date", modified),
-        ]
-        if value and not is_valid_dcat_date(value)
+    invalid_dates = []
+    if temporal_start and not is_valid_dcat_date(temporal_start):
+        invalid_dates.append("Temporal start")
+    if temporal_end and not is_valid_dcat_date(temporal_end):
+        invalid_dates.append("Temporal end")
+    if modified and not is_valid_dcat_date(modified):
+        invalid_dates.append("Modified date")
+
+    missing = [
+        name
+        for name, value
+        in required_fields.items()
+        if not value
     ]
 
-    conditional_errors = []
-    if has_cui == "Yes" and (not cui_restriction or not cui_restriction["cuiBannerMarking"] or not cui_restriction["designationIndicator"]):
-        conditional_errors.append("CUI banner marking and designation are required.")
-    if has_dictionary == "Yes" and (not dictionary_url or not dictionary_format):
-        conditional_errors.append("Data dictionary URL and format are required.")
-    if has_landing_page == "Yes" and not landing_page:
-        conditional_errors.append("Landing page URL is required.")
-    if has_access_restriction == "Yes" and (
-        not access_restriction
-        or not access_restriction["restrictionStatus"]
-        or not access_restriction["specificRestriction"]
-    ):
-        conditional_errors.append("Access restriction status and specific restriction are required.")
-    if has_use_restriction == "Yes":
-        if "Use restriction" in restriction_types and (
-            not use_restriction
-            or not use_restriction["restrictionStatus"]
-            or not use_restriction["specificRestriction"]
-        ):
-            conditional_errors.append("Use restriction status and specific restriction are required.")
-        if "License" in restriction_types and not license_value:
-            conditional_errors.append("License is required when License is selected.")
-        if "Rights" in restriction_types and not rights_value:
-            conditional_errors.append("Rights are required when Rights is selected.")
-
     if missing:
-        st.error("Please complete the required fields: " + ", ".join(missing))
+
+        st.error(
+            "Please complete these required fields:"
+        )
+
+        for field in missing:
+            st.write(f"• {field}")
+
     elif invalid_dates:
-        st.error("Please correct these date fields: " + ", ".join(invalid_dates))
-    elif conditional_errors:
-        for error in conditional_errors:
-            st.error(error)
+
+        st.error(
+            "Please correct the following date fields before saving:"
+        )
+
+        for field in invalid_dates:
+            st.write(f"• {field}")
+
     else:
-        ensure_tags_in_database(keywords)
-        ensure_themes_in_database(themes, [])
-
-        ensure_contact_in_database(
-            {
-                "name": catalog_contact_name,
-                "email": catalog_contact_email,
-                "phone": catalog_contact_phone,
-                "organization": catalog_contact_organization,
-            },
-            selected_bureau,
-        )
-        ensure_contact_in_database(
-            {
-                "name": dataset_contact_name,
-                "email": dataset_contact_email,
-                "phone": dataset_contact_phone,
-                "organization": dataset_contact_organization or publisher_office,
-            },
-            selected_bureau,
-        )
-
-        data_dictionary = (
-            {"url": dictionary_url, "format": dictionary_format}
-            if has_dictionary == "Yes"
-            else None
-        )
 
         dataset = build_dataset(
             bureau_info=bureau_info,
@@ -1994,18 +3434,18 @@ if st.button(f"Save Dataset {dataset_number}", type="primary"):
             title=title,
             description=description,
             office=publisher_office,
-            contact_name=dataset_contact_name,
-            contact_email=dataset_contact_email,
-            contact_phone=dataset_contact_phone,
-            contact_organization=dataset_contact_organization or publisher_office,
-            keywords=keywords,
-            themes=themes,
+            contact_name=contact_name,
+            contact_email=contact_email,
+            contact_phone=contact_phone,
+            contact_organization=contact_organization,
+            keywords=selected_keywords,
+            themes=selected_theme_values,
             access_rights=access_rights,
             access_restriction=access_restriction,
             cui_restriction=cui_restriction,
             use_restriction=use_restriction,
-            license=license_value,
-            rights=split_cell(rights_value),
+            license=license,
+            rights=rights,
             temporal_start=temporal_start,
             temporal_end=temporal_end,
             spatial=spatial,
@@ -2013,55 +3453,130 @@ if st.button(f"Save Dataset {dataset_number}", type="primary"):
             data_dictionary=data_dictionary,
             landing_page=landing_page,
             spatial_granularity=(
-                spatial_granularity_other
+                spatial_other
                 if spatial_granularity == "Other"
                 else spatial_granularity
             ),
             contract_number=contract_number,
-            existing_identifier=identifier if identifier else None,
+            additional_properties=saved_additional
         )
 
-        while len(st.session_state.datasets) <= dataset_number - 1:
+        dataset_index = (
+            dataset_number - 1
+        )
+
+        while len(
+            st.session_state.datasets
+        ) <= dataset_index:
+
             st.session_state.datasets.append({})
 
-        st.session_state.datasets[dataset_number - 1] = dataset
-        st.success(f"Dataset {dataset_number} saved successfully.")
+        st.session_state.datasets[
+            dataset_index
+        ] = dataset
+
+        st.success(
+            f"✓ Dataset {dataset_number} "
+            "saved successfully!"
+        )
+
+
+# ============================================================
+# ADD DATASET / DOWNLOAD
+# ============================================================
 
 if (
-    len(st.session_state.datasets) >= dataset_number
-    and st.session_state.datasets[dataset_number - 1]
+    len(st.session_state.datasets)
+    >= dataset_number
+    and st.session_state.datasets[
+        dataset_number - 1
+    ]
 ):
+
     st.markdown("---")
+
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("＋ Add Another Dataset"):
+
+        if st.button(
+            "＋ Add Another Dataset",
+            key=f"add_dataset_{dataset_number}"
+        ):
+
             st.session_state.current_dataset += 1
+
             st.rerun()
 
     with col2:
+
         catalog = build_catalog(
             bureau_info=bureau_info,
-            catalog_contact_name=catalog_contact_name,
-            catalog_contact_email=catalog_contact_email,
-            catalog_contact_phone=catalog_contact_phone,
-            catalog_contact_organization=catalog_contact_organization,
-            datasets=st.session_state.datasets,
-        )
-        st.download_button(
-            "⬇ Download Catalog JSON",
-            data=json.dumps(catalog, indent=2, ensure_ascii=False),
-            file_name="data.json",
-            mime="application/json",
+            catalog_contact_name=(
+                catalog_contact_name
+            ),
+            catalog_contact_email=(
+                catalog_contact_email
+            ),
+            catalog_contact_phone=(
+                catalog_contact_phone
+            ),
+            catalog_contact_organization=(
+                catalog_contact_organization
+            ),
+            datasets=(
+                st.session_state.datasets
+            )
         )
 
-    st.markdown("### Catalog Preview")
+        st.warning(
+            "Before using or publishing this JSON, validate it with the "
+            "Data.gov DCAT-US 3.0 validator: "
+            "https://harvest.data.gov/validate/"
+        )
+
+        st.download_button(
+            "Download Catalog JSON",
+            data=json.dumps(
+                catalog,
+                indent=2,
+                ensure_ascii=False
+            ),
+            file_name="data.json",
+            mime="application/json"
+        )
+
+
+# ============================================================
+# CATALOG PREVIEW
+# ============================================================
+
+if st.session_state.datasets:
+
+    st.warning(
+        "Before using or publishing this JSON, validate it with the "
+        "Data.gov DCAT-US 3.0 validator: "
+        "https://harvest.data.gov/validate/"
+    )
+
+    st.markdown("---")
+
+    st.markdown(
+        '<div class="section-header">'
+        '<h2>Catalog Preview</h2>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
     catalog = build_catalog(
         bureau_info=bureau_info,
         catalog_contact_name=catalog_contact_name,
         catalog_contact_email=catalog_contact_email,
         catalog_contact_phone=catalog_contact_phone,
-        catalog_contact_organization=catalog_contact_organization,
-        datasets=st.session_state.datasets,
+        catalog_contact_organization=(
+            catalog_contact_organization
+        ),
+        datasets=st.session_state.datasets
     )
+
     st.json(catalog)
