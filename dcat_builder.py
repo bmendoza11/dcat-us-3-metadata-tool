@@ -23,13 +23,12 @@ def normalize_single_value(value):
             return None
         if len(value) == 1:
             return value[0]
-        return ", ".join(str(item) for item in value if item is not None)
+        return ", ".join(str(x) for x in value if x is not None)
     return value
 
 
 def build_contact(name, email=None, phone=None, organization=None):
     contact = {"@type": "vcard:Contact"}
-
     add_if_value(contact, "fn", name)
 
     if email:
@@ -40,19 +39,14 @@ def build_contact(name, email=None, phone=None, organization=None):
 
     add_if_value(contact, "hasTelephone", phone)
     add_if_value(contact, "organization-name", organization)
-
     return contact
 
 
 def build_publisher(office, bureau_info):
-    publisher = {
-        "@type": "org:Organization",
-        "name": office,
-    }
-
+    publisher = {"@type": "org:Organization"}
+    add_if_value(publisher, "name", office)
     if bureau_info.get("homepage"):
         publisher["url"] = bureau_info["homepage"]
-
     return publisher
 
 
@@ -61,7 +55,6 @@ def build_access_restriction(access_restriction):
         return None
 
     restriction = {"@type": "AccessRestriction"}
-
     add_if_value(
         restriction,
         "restrictionStatus",
@@ -77,7 +70,6 @@ def build_access_restriction(access_restriction):
         "restrictionNote",
         access_restriction.get("restrictionNote"),
     )
-
     return restriction
 
 
@@ -86,7 +78,6 @@ def build_cui_restriction(cui_restriction):
         return None
 
     restriction = {"@type": "CUIRestriction"}
-
     add_if_value(
         restriction,
         "cuiBannerMarking",
@@ -97,7 +88,6 @@ def build_cui_restriction(cui_restriction):
         "designationIndicator",
         normalize_single_value(cui_restriction.get("designationIndicator")),
     )
-
     return restriction
 
 
@@ -106,7 +96,6 @@ def build_use_restriction(use_restriction):
         return None
 
     restriction = {"@type": "UseRestriction"}
-
     add_if_value(
         restriction,
         "restrictionStatus",
@@ -122,34 +111,29 @@ def build_use_restriction(use_restriction):
         "restrictionNote",
         use_restriction.get("restrictionNote"),
     )
-
     return restriction
 
 
-def build_spatial(spatial, spatial_granularity=None):
+def build_spatial(spatial):
     spatial = clean(spatial)
-
     if spatial is None:
         return None
 
-    def make_location(value):
-        location = {
-            "@type": "Location",
-            "prefLabel": str(value).strip(),
-        }
-        if spatial_granularity:
-            location["spatialGranularity"] = spatial_granularity
-        return location
-
     if isinstance(spatial, list):
-        locations = [
-            make_location(value)
-            for value in spatial
-            if clean(value)
-        ]
+        locations = []
+        for location in spatial:
+            location = clean(location)
+            if location:
+                locations.append({
+                    "@type": "dct:Location",
+                    "name": location,
+                })
         return locations or None
 
-    return make_location(spatial)
+    return [{
+        "@type": "dct:Location",
+        "name": spatial,
+    }]
 
 
 def build_temporal(temporal_start, temporal_end):
@@ -159,8 +143,7 @@ def build_temporal(temporal_start, temporal_end):
     if temporal_start is None and temporal_end is None:
         return None
 
-    period = {"@type": "PeriodOfTime"}
-
+    period = {"@type": "dct:PeriodOfTime"}
     if temporal_start:
         period["startDate"] = temporal_start
     if temporal_end:
@@ -174,28 +157,29 @@ def build_document(url, title=None):
     if url is None:
         return None
 
-    document = {
-        "@type": "Document",
-        "accessURL": url,
-    }
-
-    add_if_value(document, "title", title)
-
+    document = {"@type": "dcat:Resource"}
+    if title:
+        document["title"] = title
+    document["accessURL"] = url
     return document
 
 
 def build_data_dictionary(data_dictionary):
     if not data_dictionary:
         return None
-
     if isinstance(data_dictionary, dict):
+        # Normalize the app's internal {url, format} representation.
+        if "url" in data_dictionary and "accessURL" not in data_dictionary:
+            result = {
+                "@type": "dcat:Resource",
+                "title": "Data Dictionary",
+                "accessURL": data_dictionary["url"],
+            }
+            if data_dictionary.get("format"):
+                result["format"] = data_dictionary["format"]
+            return result
         return data_dictionary
-
-    return {
-        "@type": "Distribution",
-        "title": "Data Dictionary",
-        "accessURL": data_dictionary,
-    }
+    return build_document(data_dictionary, "Data Dictionary")
 
 
 def build_dataset(
@@ -224,15 +208,14 @@ def build_dataset(
     landing_page,
     spatial_granularity=None,
     contract_number=None,
-    additional_properties=None,
+    existing_identifier=None,
 ):
-    identifier = (
-        f"{bureau_info['identifier_code']}-"
-        f"{dataset_number:06d}"
+    identifier = existing_identifier or (
+        f"{bureau_info['identifier_code']}-{dataset_number:06d}"
     )
 
     dataset = {
-        "@type": "Dataset",
+        "@type": "dcat:Dataset",
         "identifier": identifier,
     }
 
@@ -267,25 +250,18 @@ def build_dataset(
             theme = str(theme).strip().lower()
             if theme and theme not in cleaned_themes:
                 cleaned_themes.append(theme)
-
         if cleaned_themes:
-            dataset["theme"] = [
-                {
-                    "@type": "Concept",
-                    "prefLabel": theme,
-                }
-                for theme in cleaned_themes
-            ]
+            dataset["theme"] = cleaned_themes
 
     add_if_value(dataset, "accessRights", access_rights)
 
-    access = build_access_restriction(access_restriction)
-    if access:
-        dataset["accessRestriction"] = [access]
+    restriction = build_access_restriction(access_restriction)
+    if restriction:
+        dataset["accessRestriction"] = [restriction]
 
     cui = build_cui_restriction(cui_restriction)
     if cui:
-        dataset["cuiRestriction"] = cui
+        dataset["CUIRestriction"] = cui
 
     use = build_use_restriction(use_restriction)
     if use:
@@ -294,20 +270,19 @@ def build_dataset(
     add_if_value(dataset, "license", license)
 
     rights_value = normalize_single_value(rights)
-    if clean(rights_value) is not None:
+    rights_value = clean(rights_value)
+    if rights_value is not None:
         dataset["rights"] = [rights_value]
 
     temporal = build_temporal(temporal_start, temporal_end)
     if temporal:
         dataset["temporal"] = temporal
 
-    spatial_object = build_spatial(
-        spatial,
-        spatial_granularity=spatial_granularity,
-    )
+    spatial_object = build_spatial(spatial)
     if spatial_object:
         dataset["spatial"] = spatial_object
 
+    add_if_value(dataset, "spatialGranularity", spatial_granularity)
     add_if_value(dataset, "modified", modified)
 
     described_by = build_data_dictionary(data_dictionary)
@@ -322,15 +297,7 @@ def build_dataset(
         if landing_page_object:
             dataset["landingPage"] = landing_page_object
 
-    if contract_number:
-        dataset["contractNumber"] = str(contract_number).strip()[:40]
-
-    if additional_properties:
-        for property_name, property_value in additional_properties.items():
-            if property_name and clean(property_value) is not None:
-                # Deliberately do not transform this value. The user is
-                # responsible for supplying the correct DCAT-US structure.
-                dataset[property_name] = property_value
+    add_if_value(dataset, "contractNumber", contract_number)
 
     dataset["inventoried"] = datetime.date.today().isoformat()
 
@@ -350,11 +317,10 @@ def build_catalog(
             "https://resources.data.gov/"
             "schemas/dcat-us/v3.0/context.jsonld"
         ),
-        "@type": "Catalog",
+        "@type": "dcat:Catalog",
         "title": f"{bureau_info['publisher']} Data Catalog",
         "description": (
-            f"These data are cataloged by "
-            f"{bureau_info['publisher']}."
+            f"This is a catalog of {bureau_info['publisher']} data."
         ),
     }
 
@@ -365,7 +331,7 @@ def build_catalog(
         )
 
     catalog["publisher"] = {
-        "@type": "Organization",
+        "@type": "org:Organization",
         "name": bureau_info["publisher"],
     }
 
@@ -386,5 +352,4 @@ def build_catalog(
         ]
 
     catalog["dataset"] = datasets
-
     return catalog
