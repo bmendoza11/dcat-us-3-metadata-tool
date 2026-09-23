@@ -28,10 +28,9 @@ THEMES_FILE = "themes.json"
 
 
 # ============================================================
-# LIGHT BLUE / WHITE STYLING
+# STYLING
 # ============================================================
-# Keep Streamlit/BaseWeb components light even when the user's
-# system/browser preference is dark mode.
+
 st.markdown(
     """
     <style>
