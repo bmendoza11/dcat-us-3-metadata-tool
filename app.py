@@ -1878,6 +1878,30 @@ temporal_end = st.text_input(
 # Q15 SPATIAL
 # ============================================================
 
+spatial_granularity = st.selectbox(
+    "Spatial Granularity",
+    [
+        "",
+        "Continent",
+        "Country",
+        "State",
+        "County",
+        "City",
+        "ZIP Code",
+        "Census Tract",
+        "Other",
+    ],
+    help="The geographic level at which the dataset's data are provided.",
+)
+
+spatial_other = ""
+if spatial_granularity == "Other":
+    spatial_other = st.text_input(
+        "Specify other spatial granularity",
+        placeholder="e.g., Watershed, School District, Parcel",
+    )
+
+
 st.markdown(
     "### Where do these data cover?"
 )
