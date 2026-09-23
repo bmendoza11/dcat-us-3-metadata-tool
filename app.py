@@ -1417,8 +1417,8 @@ st.markdown("## 2. Choose how you want to enter metadata")
 mode = st.radio(
     "Do you want to use Excel mode?",
     [
-        "No — guide me through the questions in the app",
-        "Yes — use Excel mode",
+        "No, guide me through the questions in this web app",
+        "Yes, use Excel mode",
     ],
     horizontal=True,
     key="entry_mode",
