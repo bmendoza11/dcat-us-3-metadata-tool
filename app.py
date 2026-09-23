@@ -1893,6 +1893,9 @@ spatial_granularity = st.selectbox(
     ],
     help="The geographic level at which the dataset's data are provided.",
 )
+st.markdown(
+    "### Where do these data cover?"
+)
 
 spatial_other = ""
 if spatial_granularity == "Other":
@@ -1902,9 +1905,7 @@ if spatial_granularity == "Other":
     )
 
 
-st.markdown(
-    "### Where do these data cover?"
-)
+
 
 spatial = st.text_input(
     "Geographic coverage **(Required)**",
