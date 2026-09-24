@@ -44,21 +44,29 @@ THEMES_FILE = "themes.json"
 st.markdown("""
 <style>
 
-/* Selected tags in multiselect */
-div[data-baseweb="tag"] {
-    background-color: #005ea8 !important;
-    color: white !important;
-}
-
-/* Text inside selected tags */
+/* Multiselect selected tags */
+div[data-baseweb="tag"],
+div[data-baseweb="tag"] > span,
 div[data-baseweb="tag"] span {
-    color: white !important;
+    background-color: #005ea8 !important;
+    color: #ffffff !important;
 }
 
-/* X/remove icon inside selected tags */
+/* Tag text */
+div[data-baseweb="tag"] p {
+    color: #ffffff !important;
+}
+
+/* Remove/X button */
+div[data-baseweb="tag"] button {
+    color: #ffffff !important;
+    background-color: transparent !important;
+}
+
+/* Remove/X icon */
 div[data-baseweb="tag"] svg {
-    fill: white !important;
-    color: white !important;
+    fill: #ffffff !important;
+    color: #ffffff !important;
 }
 
 </style>
