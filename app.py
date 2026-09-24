@@ -1670,11 +1670,7 @@ title = st.text_input(
 
 
 description = st.text_area(
-    "Dataset description in plain language. **(Required)**",
-    height=160,
-    key=f"description_{dataset_number}"
-)
-st.markdown(
+    "Dataset description in plain language. **(Required)**"
     """
     <div class="question-help">
     Example:<br>
@@ -1685,7 +1681,8 @@ st.markdown(
     demographic and labor force characteristics.”
     </div>
     """,
-    unsafe_allow_html=True
+    height=160,
+    key=f"description_{dataset_number}"
 )
 
 
