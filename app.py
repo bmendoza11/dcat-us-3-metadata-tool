@@ -134,6 +134,33 @@ st.markdown(
         color: #005ea8 !important;
     }
 
+    /* Multiselect selected tags: force blue/white across BaseWeb layers */
+    [data-testid="stMultiSelect"] [data-baseweb="tag"],
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] > *,
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] > * > * {
+        background: #005ea8 !important;
+        background-color: #005ea8 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border-color: #005ea8 !important;
+        box-shadow: none !important;
+        opacity: 1 !important;
+    }
+
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] button,
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] button *,
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] svg {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
     /* Multiselect keyword tags */
     [data-testid="stMultiSelect"] [data-baseweb="tag"] {
         background-color: #005ea8 !important;
@@ -214,43 +241,37 @@ st.markdown(
     a {
         color: #005ea8 !important;
     }
-
-    /* FINAL OVERRIDE: selected keyword/theme chips */
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"],
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"],
-    [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+    
+    /* FINAL BaseWeb override for selected multiselect chips */
+    [data-baseweb="tag"] {
         background: #005ea8 !important;
         background-color: #005ea8 !important;
         background-image: none !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
         border: 1px solid #005ea8 !important;
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-        opacity: 1 !important;
-    }
-
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] span,
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] div,
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] p,
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] button,
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] svg,
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"] span,
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"] div,
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"] p,
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"] button,
-    [data-testid="stMultiSelect"] div[data-baseweb="tag"] svg {
-        color: #ffffff !important;
-        fill: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-        background: transparent !important;
-        background-color: transparent !important;
-    }
-
-    [data-testid="stMultiSelect"] [data-baseweb="tag"] button {
-        border: 0 !important;
         box-shadow: none !important;
     }
 
-    </style>
+    [data-baseweb="tag"] > *,
+    [data-baseweb="tag"] > * > * {
+        background: #005ea8 !important;
+        background-color: #005ea8 !important;
+        background-image: none !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+
+    [data-baseweb="tag"] button,
+    [data-baseweb="tag"] button * {
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #ffffff !important;
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+</style>
     """,
     unsafe_allow_html=True
 )
