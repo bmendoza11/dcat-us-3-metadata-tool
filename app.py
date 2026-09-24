@@ -973,13 +973,6 @@ if mode == "Excel Mode":
             # Save any contacts entered on the New Contacts sheet.
             for contact in new_contacts:
 
-                if not str(contact.get("email", "")).strip():
-                    st.error(
-                        f"New contact '{contact.get('name', 'Unnamed')}' must have an email address. "
-                        "DCAT-US requires hasEmail."
-                    )
-                    st.stop()
-
                 save_contact(
                     contact["bureau"],
                     contact["name"],
@@ -1153,11 +1146,6 @@ if mode == "Excel Mode":
                         "publishing_office"
                     ),
                     "Dataset contact": dataset_contact,
-                    "Dataset contact email": (
-                        dataset_contact.get("email", "")
-                        if dataset_contact
-                        else ""
-                    ),
                     "Keywords": split_values(
                         row.get("keywords")
                     ),
@@ -1218,8 +1206,13 @@ if mode == "Excel Mode":
                         "must match a contact in contacts.json "
                         "for the selected bureau."
                     )
+                elif not str(dataset_contact.get("email", "")).strip():
+                    errors.append(
+                        f"Row {row_number}: dataset contact "
+                        "must have an email address in contacts.json."
+                    )
 
-                if missing or invalid_dates or not dataset_contact:
+                if missing or invalid_dates or not dataset_contact or not str(dataset_contact.get("email", "")).strip():
                     continue
 
                 access_restriction = None
@@ -1436,13 +1429,10 @@ if mode == "Excel Mode":
                         bureau_contacts
                     )
 
-                # DCAT-US requires contactPoint.hasEmail for the catalog.
-                # Do not generate downloadable JSON when the selected/default
-                # catalog contact does not have an email address.
-                if not catalog_contact or not catalog_contact.get("email", "").strip():
+                if not catalog_contact or not str(catalog_contact.get("email", "")).strip():
                     st.error(
-                        "The catalog contact must have an email address. "
-                        "DCAT-US requires contactPoint.hasEmail."
+                        "The catalog contact must have an email address in contacts.json. "
+                        "Select a catalog contact with an email address in the workbook."
                     )
                     st.stop()
 
@@ -1657,7 +1647,7 @@ if catalog_contact_choice == "Add a new contact":
         elif not catalog_contact_email.strip():
 
             st.error(
-                "Contact email is required. DCAT-US requires hasEmail."
+                "Email is required for a new contact because it will be saved to contacts.json."
             )
 
         else:
@@ -1916,7 +1906,7 @@ if dataset_contact_choice == "Add a new contact":
         elif not contact_email.strip():
 
             st.error(
-                "Contact email is required. DCAT-US requires hasEmail."
+                "Email is required for a new contact because it will be saved to contacts.json."
             )
 
         else:
@@ -3484,7 +3474,6 @@ if st.button(
         "Dataset description": description,
         "Publishing office": publisher_office,
         "Dataset contact": contact_name,
-        "Dataset contact email": contact_email,
         "Keywords": selected_keywords,
         "Themes": selected_theme_values,
         "Temporal start": temporal_start,
@@ -3508,7 +3497,14 @@ if st.button(
         if not value
     ]
 
-    if missing:
+    if not contact_email.strip() and contact_name.strip():
+
+        st.error(
+            "The selected dataset contact does not have an email address in contacts.json. "
+            "Please select a contact with an email address."
+        )
+
+    elif missing:
 
         st.error(
             "Please complete these required fields:"
@@ -3610,11 +3606,10 @@ if (
 
     with col2:
 
-        # DCAT-US requires contactPoint.hasEmail for the catalog.
         if not catalog_contact_email.strip():
             st.error(
-                "The catalog contact must have an email address. "
-                "DCAT-US requires contactPoint.hasEmail."
+                "The selected catalog contact does not have an email address in contacts.json. "
+                "Please select a contact with an email address."
             )
             st.stop()
 
