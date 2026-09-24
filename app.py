@@ -214,6 +214,42 @@ st.markdown(
     a {
         color: #005ea8 !important;
     }
+
+    /* FINAL OVERRIDE: selected keyword/theme chips */
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"],
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"],
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+        background: #005ea8 !important;
+        background-color: #005ea8 !important;
+        background-image: none !important;
+        border: 1px solid #005ea8 !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        opacity: 1 !important;
+    }
+
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] span,
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] div,
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] p,
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] button,
+    [data-testid="stMultiSelect"] span[data-baseweb="tag"] svg,
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"] span,
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"] div,
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"] p,
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"] button,
+    [data-testid="stMultiSelect"] div[data-baseweb="tag"] svg {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        background: transparent !important;
+        background-color: transparent !important;
+    }
+
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] button {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
     </style>
     """,
     unsafe_allow_html=True
