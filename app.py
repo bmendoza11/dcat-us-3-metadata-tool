@@ -1961,7 +1961,7 @@ st.session_state[keyword_state_key] = (
 # ------------------------------------------------------------
 
 with st.expander(
-    "＋ Add a new keyword"
+    "Add a new keyword"
 ):
 
     new_tag = st.text_input(
