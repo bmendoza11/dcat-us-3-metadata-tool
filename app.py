@@ -41,6 +41,33 @@ THEMES_FILE = "themes.json"
 # ============================================================
 # Keep Streamlit/BaseWeb components light even when the user's
 # system/browser preference is dark mode.
+st.markdown("""
+<style>
+/* Blue expander header */
+div[data-testid="stExpander"] details > summary {
+    background-color: #005ea8;
+    color: white !important;
+    border-radius: 6px;
+    padding: 12px 16px;
+}
+
+/* Make the expander title text white */
+div[data-testid="stExpander"] details > summary p {
+    color: white !important;
+}
+
+/* Make the arrow/icon white */
+div[data-testid="stExpander"] details > summary svg {
+    fill: white !important;
+    color: white !important;
+}
+
+/* Optional: slightly darker blue when hovering */
+div[data-testid="stExpander"] details > summary:hover {
+    background-color: #004f8c;
+}
+</style>
+""", unsafe_allow_html=True)
 st.markdown(
     """
     <style>
