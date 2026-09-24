@@ -1934,12 +1934,84 @@ st.session_state[keyword_state_key] = (
 )
 
 
-new_tag = st.text_input(
-    "Add a new keyword",
-    placeholder="Example: trade, exports, employment",
-    key=f"new_tag_{dataset_number}"
-)
+with st.expander(
+    "＋ Add a new keyword"
+):
 
+    new_tag = st.text_input(
+        "Keyword",
+        placeholder="Example: trade, exports, employment",
+        key=f"new_tag_{dataset_number}"
+    )
+
+    if st.button(
+        "Save Keyword",
+        key=f"save_tag_{dataset_number}"
+    ):
+
+        normalized_tag = normalize_tag(
+            new_tag
+        )
+
+        if not normalized_tag:
+
+            st.error(
+                "Please enter a keyword."
+            )
+
+        else:
+
+            tags = load_json_file(
+                TAGS_FILE,
+                []
+            )
+
+            normalized_tags = sorted(
+                set(
+                    normalize_tag(tag)
+                    for tag in tags
+                    if normalize_tag(tag)
+                )
+            )
+
+            if normalized_tag not in normalized_tags:
+
+                normalized_tags.append(
+                    normalized_tag
+                )
+
+                normalized_tags.sort()
+
+                save_json_file(
+                    TAGS_FILE,
+                    normalized_tags
+                )
+
+            current_keywords = list(
+                st.session_state.get(
+                    keyword_state_key,
+                    []
+                )
+            )
+
+            if normalized_tag not in current_keywords:
+
+                current_keywords.append(
+                    normalized_tag
+                )
+
+            st.session_state[
+                f"pending_keywords_{dataset_number}"
+            ] = current_keywords
+
+            st.session_state[
+                f"keyword_success_{dataset_number}"
+            ] = (
+                f'✓ "{normalized_tag}" was saved '
+                "and selected for this dataset."
+            )
+
+            st.rerun()
 
 if st.button(
     "Save Keyword",
