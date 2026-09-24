@@ -1513,7 +1513,7 @@ bureau_contacts = get_contacts_for_bureau(
 
 catalog_contact_options = [
     "Select a catalog contact",
-    "＋ Add a new contact"
+    "Add a new contact"
 ]
 
 catalog_contact_options.extend(
@@ -1538,7 +1538,7 @@ catalog_contact_phone = ""
 catalog_contact_organization = ""
 
 
-if catalog_contact_choice == "＋ Add a new contact":
+if catalog_contact_choice == "Add a new contact":
 
     catalog_contact_name = st.text_input(
         "Contact name",
@@ -1719,7 +1719,7 @@ st.markdown(
 
 office_options = [
     "Select an office",
-    "＋ Add a new office"
+    "Add a new office"
 ]
 
 office_options.extend(
@@ -1738,7 +1738,7 @@ selected_office = st.selectbox(
     key=f"office_{dataset_number}"
 )
 
-if selected_office == "＋ Add a new office":
+if selected_office == "Add a new office":
 
     publisher_office = st.text_input(
         "New office name",
@@ -1760,7 +1760,7 @@ else:
 
 dataset_contact_options = [
     "Select a contact",
-    "＋ Add a new contact"
+    "Add a new contact"
 ]
 
 dataset_contact_options.extend(
@@ -1785,7 +1785,7 @@ contact_phone = ""
 contact_organization = ""
 
 
-if dataset_contact_choice == "＋ Add a new contact":
+if dataset_contact_choice == "Add a new contact":
 
     contact_name = st.text_input(
         "Contact name",
@@ -2151,7 +2151,7 @@ st.session_state[theme_state_key] = (
 
 
 with st.expander(
-    "＋ Add a new theme"
+    "Add a new theme"
 ):
 
     new_theme_name = st.text_input(
