@@ -164,15 +164,27 @@ st.markdown(
         color: #005ea8 !important;
     }
 
-    /* Multiselect chips */
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
-        background: #eaf3fb !important;
-        color: #005ea8 !important;
+    /* Multiselect keyword tags */
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+        background-color: #005ea8 !important;
+        background: #005ea8 !important;
+        color: #ffffff !important;
+        border: 1px solid #005ea8 !important;
     }
-
-    [data-testid="stMultiSelect"] span[data-baseweb="tag"] * {
-        color: #005ea8 !important;
-        -webkit-text-fill-color: #005ea8 !important;
+    
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] * {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+    
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] svg {
+        fill: #ffffff !important;
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] button {
+        color: #ffffff !important;
+        background: transparent !important;
     }
 
     /* Buttons */
