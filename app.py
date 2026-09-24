@@ -41,36 +41,6 @@ THEMES_FILE = "themes.json"
 # ============================================================
 # Keep Streamlit/BaseWeb components light even when the user's
 # system/browser preference is dark mode.
-st.markdown("""
-<style>
-
-/* Multiselect selected tags */
-div[data-baseweb="tag"],
-div[data-baseweb="tag"] > span,
-div[data-baseweb="tag"] span {
-    background-color: #005ea8 !important;
-    color: #ffffff !important;
-}
-
-/* Tag text */
-div[data-baseweb="tag"] p {
-    color: #ffffff !important;
-}
-
-/* Remove/X button */
-div[data-baseweb="tag"] button {
-    color: #ffffff !important;
-    background-color: transparent !important;
-}
-
-/* Remove/X icon */
-div[data-baseweb="tag"] svg {
-    fill: #ffffff !important;
-    color: #ffffff !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
 st.markdown(
     """
     <style>
