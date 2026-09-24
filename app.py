@@ -1675,12 +1675,12 @@ st.markdown("""
 </div>
 
 <div class="question-help">
-    Example:<br>
-    “The Current Population Survey (CPS) is a monthly survey of households conducted
+    Example:<br><br>
+    The Current Population Survey (CPS) is a monthly survey of households conducted
     by the Census Bureau for the Bureau of Labor Statistics. In addition to the
     national unemployment rate, it provides data on employment, the unemployment
     rate, persons not in the labor force, hours of work, earnings, and other
-    demographic and labor force characteristics.”
+    demographic and labor force characteristics.
 </div>
 """, unsafe_allow_html=True)
 
