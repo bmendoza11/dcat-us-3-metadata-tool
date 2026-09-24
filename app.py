@@ -686,8 +686,8 @@ st.markdown(
 existing_catalog_choice = st.radio(
     "Do you have an existing catalog JSON file?",
     [
-        "No — start a new catalog",
-        "Yes — upload an existing catalog"
+        "No, start a new catalog",
+        "Yes, upload an existing catalog"
     ],
     horizontal=True,
     key="existing_catalog_choice"
