@@ -1917,13 +1917,35 @@ keyword_widget_key = (
     f"keyword_widget_{dataset_number}"
 )
 
+pending_keywords_key = (
+    f"pending_keywords_{dataset_number}"
+)
+
 if keyword_state_key not in st.session_state:
     st.session_state[keyword_state_key] = []
+
+
+# Apply any keyword that was added during the
+# previous run before creating the widget.
+if pending_keywords_key in st.session_state:
+
+    st.session_state[keyword_state_key] = (
+        st.session_state[
+            pending_keywords_key
+        ]
+    )
+
+    del st.session_state[
+        pending_keywords_key
+    ]
 
 
 selected_tags = st.multiselect(
     "Select keywords",
     tags,
+    default=st.session_state[
+        keyword_state_key
+    ],
     key=keyword_widget_key
 )
 
@@ -1933,6 +1955,10 @@ st.session_state[keyword_state_key] = (
     selected_tags
 )
 
+
+# ------------------------------------------------------------
+# Add a new keyword
+# ------------------------------------------------------------
 
 with st.expander(
     "＋ Add a new keyword"
@@ -1987,6 +2013,8 @@ with st.expander(
                     normalized_tags
                 )
 
+            # Add the new keyword to the dataset's
+            # selected values.
             current_keywords = list(
                 st.session_state.get(
                     keyword_state_key,
@@ -2000,8 +2028,10 @@ with st.expander(
                     normalized_tag
                 )
 
+            # Store the selection separately so
+            # the multiselect can use it after rerun.
             st.session_state[
-                f"pending_keywords_{dataset_number}"
+                pending_keywords_key
             ] = current_keywords
 
             st.session_state[
@@ -2013,109 +2043,10 @@ with st.expander(
 
             st.rerun()
 
-if st.button(
-    "Save Keyword",
-    key=f"save_tag_{dataset_number}"
-):
 
-    normalized_tag = normalize_tag(
-        new_tag
-    )
-
-    if not normalized_tag:
-
-        st.error(
-            "Please enter a keyword."
-        )
-
-    else:
-
-        tags = load_json_file(
-            TAGS_FILE,
-            []
-        )
-
-        normalized_tags = sorted(
-            set(
-                normalize_tag(tag)
-                for tag in tags
-                if normalize_tag(tag)
-            )
-        )
-
-        if normalized_tag not in normalized_tags:
-
-            normalized_tags.append(
-                normalized_tag
-            )
-
-            normalized_tags.sort()
-
-            save_json_file(
-                TAGS_FILE,
-                normalized_tags
-            )
-
-        # Add the new keyword to the dataset's
-        # selected values.
-        current_keywords = list(
-            st.session_state.get(
-                keyword_state_key,
-                []
-            )
-        )
-
-        if normalized_tag not in current_keywords:
-
-            current_keywords.append(
-                normalized_tag
-            )
-
-        # IMPORTANT:
-        # Do NOT directly modify the widget's
-        # session-state key here.
-        #
-        # Store the selection separately and
-        # use a pending value to initialize the
-        # widget after rerun.
-        st.session_state[
-            f"pending_keywords_{dataset_number}"
-        ] = current_keywords
-
-        st.session_state[
-            f"keyword_success_{dataset_number}"
-        ] = (
-            f'✓ "{normalized_tag}" was saved '
-            "and selected for this dataset."
-        )
-
-        st.rerun()
-
-
-# Apply pending keyword selections AFTER the
-# widget has been created.
-pending_keywords_key = (
-    f"pending_keywords_{dataset_number}"
-)
-
-if pending_keywords_key in st.session_state:
-
-    pending_keywords = (
-        st.session_state[
-            pending_keywords_key
-        ]
-    )
-
-    st.session_state[
-        keyword_state_key
-    ] = pending_keywords
-
-    # Remove pending state so this only happens
-    # once.
-    del st.session_state[
-        pending_keywords_key
-    ]
-
+# ------------------------------------------------------------
+# Saved indicator
+# ------------------------------------------------------------
 
 if (
     f"keyword_success_{dataset_number}"
@@ -2136,7 +2067,6 @@ if (
     del st.session_state[
         f"keyword_success_{dataset_number}"
     ]
-
 
 # ============================================================
 # Q9 THEMES
