@@ -43,29 +43,24 @@ THEMES_FILE = "themes.json"
 # system/browser preference is dark mode.
 st.markdown("""
 <style>
-/* Blue expander header */
-div[data-testid="stExpander"] details > summary {
-    background-color: #005ea8;
-    color: white !important;
-    border-radius: 6px;
-    padding: 12px 16px;
-}
 
-/* Make the expander title text white */
-div[data-testid="stExpander"] details > summary p {
+/* Selected tags in multiselect */
+div[data-baseweb="tag"] {
+    background-color: #005ea8 !important;
     color: white !important;
 }
 
-/* Make the arrow/icon white */
-div[data-testid="stExpander"] details > summary svg {
+/* Text inside selected tags */
+div[data-baseweb="tag"] span {
+    color: white !important;
+}
+
+/* X/remove icon inside selected tags */
+div[data-baseweb="tag"] svg {
     fill: white !important;
     color: white !important;
 }
 
-/* Optional: slightly darker blue when hovering */
-div[data-testid="stExpander"] details > summary:hover {
-    background-color: #004f8c;
-}
 </style>
 """, unsafe_allow_html=True)
 st.markdown(
